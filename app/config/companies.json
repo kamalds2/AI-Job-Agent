@@ -1,0 +1,16 @@
+[
+  {
+    "name": "OpenAI",
+    "platform": "greenhouse",
+    "career_url": "https://openai.com/careers",
+    "priority": 10,
+    "enabled": true
+  },
+  {
+    "name": "Anthropic",
+    "platform": "greenhouse",
+    "career_url": "https://www.anthropic.com/careers",
+    "priority": 10,
+    "enabled": true
+  }
+]

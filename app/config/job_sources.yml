@@ -1,0 +1,25 @@
+sources:
+
+  remoteok:
+    enabled: true
+    connector: api
+
+  wellfound:
+    enabled: true
+    connector: html
+
+  ycombinator:
+    enabled: true
+    connector: html
+
+  linkedin:
+    enabled: false
+    connector: browser
+
+  naukri:
+    enabled: false
+    connector: browser
+
+  foundit:
+    enabled: false
+    connector: browser
