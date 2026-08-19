@@ -39,13 +39,13 @@ class Job(Base):
 
     source_id = Column(Integer, ForeignKey("job_sources.id"))
 
-    job_url = Column(String(1000), unique=True)
+    job_url = Column(String(1000), unique=True, index=True)
 
-    posted_date = Column(Date)
+    status = Column(String(50),default="NEW", index=True) 
 
-    match_score = Column(Float)
+    posted_date = Column(Date, index=True) 
 
-    status = Column(String(50), default="NEW")
+    match_score = Column(Float, index=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -61,4 +61,4 @@ class Job(Base):
         cascade="all, delete-orphan",
     )
 
-    source = relationship("JobSource")
+    source = relationship("JobSource", back_populates="jobs")

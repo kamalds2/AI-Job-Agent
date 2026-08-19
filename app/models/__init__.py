@@ -8,3 +8,4 @@ from .report import DailyReport
 from .resume import ResumeVersion
 from .resume_skill import ResumeSkill
 from .skill import Skill
+from .search_log import SearchLog
