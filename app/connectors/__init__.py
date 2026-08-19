@@ -10,4 +10,6 @@ from app.connectors import (  # noqa: F401
     remotive_connector,
     himalayas_connector,
     naukri_connector,
+    hirist_connector,
+    tier5_connector,
 )

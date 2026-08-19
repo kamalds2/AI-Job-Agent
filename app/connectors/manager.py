@@ -53,6 +53,8 @@ class SearchManager:
             remotive_connector,
             himalayas_connector,
             naukri_connector,
+            hirist_connector,
+            tier5_connector,
         )
 
         logger.info(f"🔍 Starting search across {len(CONNECTORS)} connectors...")

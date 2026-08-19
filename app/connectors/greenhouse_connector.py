@@ -22,23 +22,55 @@ from app.schemas.job_data import JobData
 logger = logging.getLogger(__name__)
 
 
-# Target companies using Greenhouse ATS — add more here
+# Target companies using Greenhouse ATS — all verified working
 GREENHOUSE_COMPANIES: list[dict] = [
-    {"token": "anthropic", "name": "Anthropic"},
-    {"token": "openai", "name": "OpenAI"},
-    {"token": "stripe", "name": "Stripe"},
-    {"token": "airbnb", "name": "Airbnb"},
-    {"token": "doordash", "name": "DoorDash"},
-    {"token": "plaid", "name": "Plaid"},
-    {"token": "gusto", "name": "Gusto"},
-    {"token": "hashicorp", "name": "HashiCorp"},
-    {"token": "gitlab", "name": "GitLab"},
-    {"token": "figma", "name": "Figma"},
-    {"token": "notion", "name": "Notion"},
-    {"token": "segment", "name": "Segment"},
-    {"token": "twilio", "name": "Twilio"},
-    {"token": "datadog", "name": "Datadog"},
-    {"token": "confluent", "name": "Confluent"},
+    # AI / LLM
+    {"token": "anthropic",      "name": "Anthropic"},
+    {"token": "openai",         "name": "OpenAI"},
+
+    # Fintech
+    {"token": "stripe",         "name": "Stripe"},
+    {"token": "plaid",          "name": "Plaid"},
+    {"token": "brex",           "name": "Brex"},
+    {"token": "chime",          "name": "Chime"},
+    {"token": "carta",          "name": "Carta"},
+    {"token": "coinbase",       "name": "Coinbase"},
+    {"token": "robinhood",      "name": "Robinhood"},
+
+    # Infra / Cloud / DevOps
+    {"token": "hashicorp",      "name": "HashiCorp"},
+    {"token": "datadog",        "name": "Datadog"},
+    {"token": "confluent",      "name": "Confluent"},
+    {"token": "elastic",        "name": "Elastic"},
+    {"token": "mongodb",        "name": "MongoDB"},
+    {"token": "cockroachlabs",  "name": "CockroachDB"},
+    {"token": "yugabyte",       "name": "YugabyteDB"},
+    {"token": "pagerduty",      "name": "PagerDuty"},
+    {"token": "okta",           "name": "Okta"},
+
+    # Product SaaS
+    {"token": "gitlab",         "name": "GitLab"},
+    {"token": "figma",          "name": "Figma"},
+    {"token": "asana",          "name": "Asana"},
+    {"token": "intercom",       "name": "Intercom"},
+    {"token": "calendly",       "name": "Calendly"},
+    {"token": "amplitude",      "name": "Amplitude"},
+    {"token": "mixpanel",       "name": "Mixpanel"},
+    {"token": "pendo",          "name": "Pendo"},
+    {"token": "lattice",        "name": "Lattice"},
+    {"token": "squarespace",    "name": "Squarespace"},
+
+    # Social / Consumer
+    {"token": "airbnb",         "name": "Airbnb"},
+    {"token": "discord",        "name": "Discord"},
+    {"token": "roblox",         "name": "Roblox"},
+    {"token": "doordash",       "name": "DoorDash"},
+
+    # Other verified
+    {"token": "gusto",          "name": "Gusto"},
+    {"token": "twilio",         "name": "Twilio"},
+    {"token": "segment",        "name": "Segment"},
+    {"token": "remote",         "name": "Remote.com"},
 ]
 
 # Keywords to filter relevant jobs

@@ -1,24 +1,55 @@
-# Virtual Environment
-.venv/
-
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
 
-# Environment
+# Virtual environment
+.venv/
+venv/
+env/
+.env/
+
+# Environment variables — NEVER commit secrets
 .env
+*.env.local
+*.env.production
+
+# Database — local data only
+*.db
+*.sqlite
+*.sqlite3
+
+# Reports & generated resumes — local output
+reports/
+resumes/tailored_*/
+resumes/*.pdf
+!resumes/Kamal_Kumar_Java_AI_Developer_ATS.pdf
 
 # Logs
+*.log
 logs/
 
-# Reports
-reports/
-
-# Database
-*.db
-
-# VS Code
+# IDE
+.idea/
 .vscode/
-
-# macOS
+*.swp
+*.swo
 .DS_Store
+Thumbs.db
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Google OAuth credentials
+credentials.json
+token.json
+gmail_token.json

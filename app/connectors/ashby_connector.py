@@ -19,21 +19,50 @@ logger = logging.getLogger(__name__)
 
 
 ASHBY_COMPANIES: list[dict] = [
-    {"token": "linear", "name": "Linear"},
-    {"token": "retool", "name": "Retool"},
-    {"token": "rippling", "name": "Rippling"},
-    {"token": "ramp", "name": "Ramp"},
-    {"token": "brex", "name": "Brex"},
-    {"token": "scale-ai", "name": "Scale AI"},
-    {"token": "cohere", "name": "Cohere"},
-    {"token": "mistral", "name": "Mistral AI"},
-    {"token": "runway", "name": "Runway ML"},
-    {"token": "replit", "name": "Replit"},
-    {"token": "dbt-labs", "name": "dbt Labs"},
-    {"token": "airbyte", "name": "Airbyte"},
-    {"token": "prefect", "name": "Prefect"},
-    {"token": "modal", "name": "Modal Labs"},
-    {"token": "baseten", "name": "Baseten"},
+    # AI / LLM Startups
+    {"token": "scale-ai",       "name": "Scale AI"},
+    {"token": "cohere",         "name": "Cohere"},
+    {"token": "mistral",        "name": "Mistral AI"},
+    {"token": "perplexity",     "name": "Perplexity AI"},
+    {"token": "elevenlabs",     "name": "ElevenLabs"},
+    {"token": "pika",           "name": "Pika Labs"},
+    {"token": "harvey",         "name": "Harvey AI"},
+    {"token": "runway",         "name": "Runway ML"},
+    {"token": "replit",         "name": "Replit"},
+
+    # Data / ML Infra
+    {"token": "dbt-labs",       "name": "dbt Labs"},
+    {"token": "airbyte",        "name": "Airbyte"},
+    {"token": "prefect",        "name": "Prefect"},
+    {"token": "modal",          "name": "Modal Labs"},
+    {"token": "baseten",        "name": "Baseten"},
+    {"token": "hex",            "name": "Hex"},
+
+    # Cloud / Backend Infra
+    {"token": "temporal",       "name": "Temporal"},
+    {"token": "neon",           "name": "Neon DB"},
+    {"token": "render",         "name": "Render"},
+    {"token": "railway",        "name": "Railway"},
+    {"token": "supabase",       "name": "Supabase"},
+
+    # Fintech
+    {"token": "ramp",           "name": "Ramp"},
+    {"token": "brex",           "name": "Brex"},
+    {"token": "rippling",       "name": "Rippling"},
+
+    # Dev Tools / Auth / API
+    {"token": "resend",         "name": "Resend"},
+    {"token": "workos",         "name": "WorkOS"},
+    {"token": "stytch",         "name": "Stytch"},
+    {"token": "inngest",        "name": "Inngest"},
+    {"token": "mintlify",       "name": "Mintlify"},
+    {"token": "readme",         "name": "ReadMe"},
+    {"token": "gitbook",        "name": "GitBook"},
+
+    # Product / Collaboration
+    {"token": "linear",         "name": "Linear"},
+    {"token": "retool",         "name": "Retool"},
+    {"token": "notion",         "name": "Notion"},
 ]
 
 RELEVANT_KEYWORDS = [
