@@ -46,7 +46,9 @@ class WhatsAppService:
             return False
 
         try:
+            import sys
             url = WHATSAPP_API_URL.format(phone_id=self.phone_id)
+            ssl_verify = False if sys.platform == "win32" else True
             response = httpx.post(
                 url,
                 headers={
@@ -61,13 +63,14 @@ class WhatsAppService:
                     "text": {"preview_url": False, "body": message},
                 },
                 timeout=10,
+                verify=ssl_verify,
             )
             response.raise_for_status()
-            logger.info("📱 WhatsApp message sent")
+            logger.info("WhatsApp message sent")
             return True
 
         except Exception as e:
-            logger.error(f"❌ WhatsApp send failed: {e}")
+            logger.error(f"WhatsApp send failed: {e}")
             return False
 
     def send_job_match_alert(

@@ -1,22 +1,28 @@
 """
-Email Service — drafts cold outreach emails using Claude and sends via Gmail OAuth2.
+Email Service — drafts cold outreach emails using Claude → OpenAI → Template fallback.
 
 Flow:
-  1. Claude drafts a personalized cold email for the job
-  2. Gmail OAuth2 sends the email (if recruiter email is available)
-  3. Application record updated with email_sent=True
+  1. Try Claude to draft personalized email
+  2. Try OpenAI gpt-4o-mini if Claude fails
+  3. Use professional template fallback if both LLMs fail
+  4. Gmail OAuth2 sends the email with tailored resume attached
 """
 import base64
 import json
 import logging
 import sys
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email import encoders
 from typing import Optional
+import os
 
-import anthropic
 import httpx
 
 from app.config.settings import (
     ANTHROPIC_API_KEY,
+    OPENAI_API_KEY,
     CLAUDE_MODEL,
     EMAIL_ADDRESS,
     GMAIL_CLIENT_ID,
@@ -30,31 +36,90 @@ from app.prompts.email_prompt import (
     build_email_user_prompt,
 )
 
-
-def _make_anthropic_client():
-    if sys.platform == "win32":
-        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client(verify=False))
-    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
 logger = logging.getLogger(__name__)
 
 GMAIL_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+SSL_VERIFY = False if sys.platform == "win32" else True
+
+
+def _make_anthropic_client():
+    if not ANTHROPIC_API_KEY:
+        return None
+    try:
+        import anthropic
+        return anthropic.Anthropic(
+            api_key=ANTHROPIC_API_KEY,
+            http_client=httpx.Client(verify=False) if sys.platform == "win32" else None,
+        )
+    except ImportError:
+        return None
+
+
+def _make_openai_client():
+    if not OPENAI_API_KEY:
+        return None
+    try:
+        import openai
+        return openai.OpenAI(
+            api_key=OPENAI_API_KEY,
+            http_client=httpx.Client(verify=False) if sys.platform == "win32" else None,
+        )
+    except ImportError:
+        return None
+
+
+def _template_email(
+    job_title: str,
+    company: str,
+    match_score: int,
+    recruiter_name: Optional[str] = None,
+) -> dict:
+    """Professional fallback template when LLMs are unavailable."""
+    greeting = f"Dear {recruiter_name}," if recruiter_name else "Dear Hiring Manager,"
+    subject = f"Application: {job_title} at {company}"
+    body = f"""{greeting}
+
+I am writing to express my strong interest in the {job_title} position at {company}.
+
+I am a Java/Spring Boot backend engineer with 5+ years of experience building scalable microservices on AWS. My background includes:
+
+- Java, Spring Boot, Spring Cloud, Microservices architecture
+- AWS (EC2, ECS, Lambda, RDS, SQS, SNS, S3)
+- Python, FastAPI, REST APIs, GraphQL
+- Kubernetes, Docker, Terraform, CI/CD pipelines
+- AI/ML integration and LangChain/LangGraph agent development
+
+I am particularly excited about {company}'s mission and believe my experience aligns well with the {job_title} role (match score: {match_score}/100).
+
+I have attached my tailored resume for your review. I would welcome the opportunity to discuss how my skills can contribute to your team.
+
+Thank you for your time and consideration.
+
+Best regards,
+{CANDIDATE_NAME}
+kamalkumar.doddi@gmail.com
+"""
+    return {
+        "subject": subject,
+        "body": body,
+        "follow_up_day": 7,
+        "_source": "template",
+    }
 
 
 class EmailService:
     """
-    Drafts personalized cold emails with Claude and sends via Gmail API.
+    Drafts personalized cold emails via Claude → OpenAI → Template.
+    Sends via Gmail OAuth2 API.
     """
 
     def __init__(self):
-        if not ANTHROPIC_API_KEY:
-            raise ValueError("ANTHROPIC_API_KEY not set")
-        self.client = _make_anthropic_client()
-        self.model = CLAUDE_MODEL
+        self._claude = _make_anthropic_client()
+        self._openai = _make_openai_client()
         self._access_token: Optional[str] = None
 
-    # ── Draft ──────────────────────────────────────────────────────
+    # ── Draft email ────────────────────────────────────────────────
 
     def draft_email(
         self,
@@ -66,9 +131,7 @@ class EmailService:
         recruiter_name: Optional[str] = None,
     ) -> dict:
         """
-        Use Claude to draft a cold outreach email.
-
-        Returns: {"subject": str, "body": str, "follow_up_day": int}
+        Draft a cold outreach email. Cascade: Claude → OpenAI → Template.
         """
         user_prompt = build_email_user_prompt(
             job_title=job_title,
@@ -79,33 +142,56 @@ class EmailService:
             match_score=match_score,
         )
 
+        # 1. Try Claude
+        if self._claude:
+            try:
+                msg = self._claude.messages.create(
+                    model=CLAUDE_MODEL,
+                    max_tokens=1024,
+                    system=EMAIL_DRAFTING_SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                draft = self._parse_llm_response(msg.content[0].text)
+                if draft:
+                    draft["_source"] = "claude"
+                    logger.info(f"[Claude] Email drafted for '{job_title}' @ {company}")
+                    return draft
+            except Exception as e:
+                logger.warning(f"[Claude] Email draft failed: {e}")
+
+        # 2. Try OpenAI
+        if self._openai:
+            try:
+                resp = self._openai.chat.completions.create(
+                    model="gpt-4o-mini",
+                    max_tokens=1024,
+                    messages=[
+                        {"role": "system", "content": EMAIL_DRAFTING_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                )
+                draft = self._parse_llm_response(resp.choices[0].message.content)
+                if draft:
+                    draft["_source"] = "openai"
+                    logger.info(f"[OpenAI] Email drafted for '{job_title}' @ {company}")
+                    return draft
+            except Exception as e:
+                logger.warning(f"[OpenAI] Email draft failed: {e}")
+
+        # 3. Professional template fallback
+        logger.info(f"[Template] Using fallback email for '{job_title}' @ {company}")
+        return _template_email(job_title, company, match_score, recruiter_name)
+
+    def _parse_llm_response(self, content: str) -> Optional[dict]:
+        """Parse JSON from LLM response, handling markdown fences."""
         try:
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                system=EMAIL_DRAFTING_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
-
-            content = message.content[0].text.strip()
-
-            # Extract JSON
             if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
+                content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-
-            draft = json.loads(content)
-            logger.info(f"✅ Email drafted for '{job_title}' @ {company}")
-            return draft
-
-        except Exception as e:
-            logger.error(f"❌ Email draft failed: {e}")
-            return {
-                "subject": f"Application: {job_title} at {company}",
-                "body": f"Hi,\n\nI'm {CANDIDATE_NAME} and I'm interested in the {job_title} role at {company}.\n\nBest regards,\n{CANDIDATE_NAME}",
-                "follow_up_day": 7,
-            }
+                content = content.split("```")[1].split("```")[0]
+            return json.loads(content.strip())
+        except Exception:
+            return None
 
     # ── Gmail OAuth ────────────────────────────────────────────────
 
@@ -114,10 +200,8 @@ class EmailService:
         if not GMAIL_REFRESH_TOKEN:
             logger.warning("GMAIL_REFRESH_TOKEN not set — email sending disabled")
             return None
-
         try:
-            import httpx as _httpx
-            response = _httpx.post(
+            resp = httpx.post(
                 GMAIL_TOKEN_URL,
                 data={
                     "client_id": GMAIL_CLIENT_ID,
@@ -125,13 +209,13 @@ class EmailService:
                     "refresh_token": GMAIL_REFRESH_TOKEN,
                     "grant_type": "refresh_token",
                 },
+                verify=SSL_VERIFY,
             )
-            response.raise_for_status()
-            self._access_token = response.json()["access_token"]
+            resp.raise_for_status()
+            self._access_token = resp.json()["access_token"]
             return self._access_token
-
         except Exception as e:
-            logger.error(f"❌ Gmail token refresh failed: {e}")
+            logger.error(f"Gmail token refresh failed: {e}")
             return None
 
     def send_email(
@@ -141,10 +225,7 @@ class EmailService:
         body: str,
         pdf_attachment_path: Optional[str] = None,
     ) -> bool:
-        """
-        Send email via Gmail API with optional PDF attachment.
-        Returns True if sent successfully (or DRY_RUN mode).
-        """
+        """Send email via Gmail API with optional PDF attachment."""
         if DRY_RUN:
             logger.info(f"[DRY RUN] Would send email to {to_email}: '{subject}'")
             return True
@@ -158,44 +239,37 @@ class EmailService:
             return False
 
         try:
-            # Build MIME message
             msg = MIMEMultipart()
             msg["From"] = f"{CANDIDATE_NAME} <{EMAIL_ADDRESS}>"
             msg["To"] = to_email
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "plain"))
 
-            # Attach PDF if provided
-            if pdf_attachment_path:
-                from email.mime.base import MIMEBase
-                from email import encoders
+            if pdf_attachment_path and os.path.exists(pdf_attachment_path):
                 with open(pdf_attachment_path, "rb") as f:
                     part = MIMEBase("application", "pdf")
                     part.set_payload(f.read())
                     encoders.encode_base64(part)
-                    import os
                     part.add_header(
                         "Content-Disposition",
                         f"attachment; filename={os.path.basename(pdf_attachment_path)}",
                     )
                     msg.attach(part)
 
-            # Encode as base64 for Gmail API
             raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-
-            import httpx as _httpx
-            response = _httpx.post(
+            resp = httpx.post(
                 GMAIL_SEND_URL,
                 headers={
                     "Authorization": f"Bearer {access_token}",
                     "Content-Type": "application/json",
                 },
                 json={"raw": raw},
+                verify=SSL_VERIFY,
             )
-            response.raise_for_status()
-            logger.info(f"📧 Email sent to {to_email}: '{subject}'")
+            resp.raise_for_status()
+            logger.info(f"Email sent to {to_email}: '{subject}'")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Email send failed to {to_email}: {e}")
+            logger.error(f"Email send failed to {to_email}: {e}")
             return False

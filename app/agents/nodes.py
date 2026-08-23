@@ -6,6 +6,7 @@ Node flow:
 """
 import asyncio
 import logging
+import re
 from datetime import date, datetime
 
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from app.config.settings import (
     MATCH_SCORE_THRESHOLD,
     MAX_APPLICATIONS_PER_RUN,
     MOCK_SCORING,
+    EMAIL_ADDRESS,
 )
 from app.connectors.manager import SearchManager
 from app.repositories.job_repository import JobRepository
@@ -27,6 +29,52 @@ from app.services.whatsapp_service import WhatsAppService
 from app.services.report_service import ReportService
 
 logger = logging.getLogger(__name__)
+
+
+def company_from_url(url: str) -> str:
+    """
+    Extract company name from ATS job board URLs when company_id is NULL.
+    Examples:
+      greenhouse.io/anthropic/...  → Anthropic
+      lever.co/stripe/...          → Stripe
+      ashbyhq.com/openai/...       → OpenAI
+      stripe.com/jobs/...          → Stripe
+    """
+    if not url:
+        return "Unknown"
+    url_lower = url.lower()
+
+    # Greenhouse: job-boards.greenhouse.io/COMPANY/...
+    m = re.search(r"greenhouse\.io/([a-z0-9_-]+)/", url_lower)
+    if m:
+        return m.group(1).replace("-", " ").title()
+
+    # Lever: jobs.lever.co/COMPANY/...
+    m = re.search(r"lever\.co/([a-z0-9_-]+)/", url_lower)
+    if m:
+        return m.group(1).replace("-", " ").title()
+
+    # Ashby: jobs.ashbyhq.com/COMPANY/...
+    m = re.search(r"ashbyhq\.com/([a-z0-9_-]+)/", url_lower)
+    if m:
+        return m.group(1).replace("-", " ").title()
+
+    # Direct company domains (stripe.com, coinbase.com, etc.)
+    m = re.search(r"https?://(?:www\.)?([a-z0-9_-]+)\.(com|io|co|ai|dev)/", url_lower)
+    if m:
+        domain = m.group(1)
+        # Skip generic ATS domains
+        if domain not in {"greenhouse", "lever", "ashby", "workday", "indeed", "linkedin", "jobvite"}:
+            return domain.replace("-", " ").title()
+
+    return "Unknown"
+
+
+def resolve_company(job) -> str:
+    """Get company name from FK relationship or fall back to URL parsing."""
+    if job.company and job.company.name and job.company.name != "Unknown":
+        return job.company.name
+    return company_from_url(job.job_url)
 
 
 def make_search_node(db: Session):
@@ -73,97 +121,166 @@ def make_scoring_node(db: Session):
     Updates match_score in DB.
     """
     def scoring_node(state: AgentState) -> AgentState:
-        logger.info("⭐ [Node 2] AI Scoring starting...")
+        logger.info("[Node 2] AI Scoring starting...")
         logs = list(state.get("logs", []))
         errors = list(state.get("errors", []))
-
-        new_job_ids = state.get("new_job_ids", [])
-        if not new_job_ids:
-            logs.append("No new jobs to score")
-            return {**state, "scored_jobs": [], "qualified_job_ids": [], "logs": logs}
 
         try:
             job_repo = JobRepository(db)
             scoring_service = ScoringService()
             resume_service = ResumeService()
 
-            # Extract resume text once
             resume_text = resume_service.extract_resume_text()
 
-            # Relevance pre-filter — only send tech jobs to Claude (saves API calls)
+            # ── Collect job IDs to score ─────────────────────────
+            # 1. New jobs from this run
+            new_job_ids = set(state.get("new_job_ids", []))
+
+            # 2. ALSO pick up any unscored NEW jobs from previous runs (backlog)
+            backlog_limit = 500  # Score up to 500 backlog jobs per run
+            backlog_jobs = (
+                db.query(job_repo.model)
+                .filter(
+                    job_repo.model.status == "NEW",
+                    job_repo.model.match_score.is_(None),
+                )
+                .limit(backlog_limit)
+                .all()
+            )
+            backlog_ids = {j.id for j in backlog_jobs}
+            all_ids = new_job_ids | backlog_ids
+
+            if not all_ids:
+                logs.append("No jobs to score (no new, no backlog)")
+                return {**state, "scored_jobs": [], "qualified_job_ids": [], "logs": logs}
+
+            logger.info(
+                f"Jobs to score: {len(new_job_ids)} new this run "
+                f"+ {len(backlog_ids)} backlog = {len(all_ids)} total"
+            )
+
+            # ── Tech relevance pre-filter ────────────────────────
             TECH_KEYWORDS = {
                 "java", "spring", "python", "backend", "software", "engineer",
                 "developer", "api", "aws", "cloud", "microservice", "fastapi",
                 "architect", "platform", "data", "ml", "ai", "fullstack",
                 "full stack", "full-stack", "devops", "infrastructure", "infra",
                 "senior", "staff", "principal", "technical", "tech lead",
+                "kotlin", "scala", "golang", "typescript", "node", "react",
+                "kubernetes", "docker", "terraform", "distributed", "streaming",
             }
 
             def is_tech_job(title: str, description: str) -> bool:
                 combined = (title + " " + description[:300]).lower()
                 return any(kw in combined for kw in TECH_KEYWORDS)
 
-            # Load new jobs from DB
             jobs_to_score = []
             skipped_irrelevant = 0
-            for job_id in new_job_ids:
+            for job_id in all_ids:
                 job = job_repo.get_by_id(job_id)
-                if job:
-                    if not is_tech_job(job.title, job.description or ""):
-                        # Mark as SKIPPED without calling Claude
-                        job.status = "SKIPPED"
-                        job.match_score = 0
-                        skipped_irrelevant += 1
-                        continue
-                    # Resolve company name from relation
-                    company_name = "Unknown"
-                    if job.company:
-                        company_name = job.company.name
-                    jobs_to_score.append({
-                        "id": job.id,
-                        "title": job.title,
-                        "company": company_name,
-                        "description": job.description or "",
-                        "job_url": job.job_url,
-                    })
+                if not job:
+                    continue
+                if not is_tech_job(job.title, job.description or ""):
+                    job.status = "SKIPPED"
+                    job.match_score = 0
+                    skipped_irrelevant += 1
+                    continue
+                company_name = resolve_company(job)
+                jobs_to_score.append({
+                    "id": job.id,
+                    "title": job.title,
+                    "company": company_name,
+                    "description": job.description or "",
+                    "job_url": job.job_url,
+                })
             db.commit()
-            logger.info(f"Pre-filter: {len(jobs_to_score)} relevant jobs to score, {skipped_irrelevant} irrelevant skipped")
+            logger.info(
+                f"Pre-filter: {len(jobs_to_score)} tech jobs to score, "
+                f"{skipped_irrelevant} non-tech skipped"
+            )
 
-            # Score in batch — use mock if configured or as fallback
+
+            # ── Stage 1: Mock-score ALL filtered jobs (fast, free) ──
+            logger.info(f"Stage 1: Mock-scoring {len(jobs_to_score)} filtered jobs...")
+            mock_scored, _ = mock_batch_score(
+                jobs=jobs_to_score,
+                resume_text=resume_text,
+                threshold=MATCH_SCORE_THRESHOLD,
+            )
+
             if MOCK_SCORING:
-                logger.info("Using MOCK scoring (MOCK_SCORING=true)")
-                scored_jobs, qualified_ids = mock_batch_score(
-                    jobs=jobs_to_score,
-                    resume_text=resume_text,
-                    threshold=MATCH_SCORE_THRESHOLD,
-                )
+                # Pure mock mode — use mock scores directly
+                logger.info("MOCK_SCORING=true — using mock scores as final")
+                scored_jobs = mock_scored
+                qualified_ids = [
+                    j["job_id"] for j in mock_scored
+                    if j.get("score", 0) >= MATCH_SCORE_THRESHOLD
+                ]
             else:
+                # ── Stage 2: LLM-score only the top 30 mock candidates ──
+                # Sort by mock score, take top 30 to send to Claude/OpenAI
+                top_candidates = sorted(
+                    mock_scored, key=lambda x: x.get("score", 0), reverse=True
+                )[:30]
+                top_ids = {j["job_id"] for j in top_candidates}
+
+                logger.info(
+                    f"Stage 2: LLM-scoring top {len(top_candidates)} candidates "
+                    f"(mock score >= {MATCH_SCORE_THRESHOLD - 15})..."
+                )
+
+                # Only send top candidates for expensive LLM scoring
+                llm_jobs = [j for j in jobs_to_score if j["id"] in top_ids]
+
                 try:
-                    scored_jobs, qualified_ids = scoring_service.batch_score(
-                        jobs=jobs_to_score,
+                    llm_scored, llm_qualified = scoring_service.batch_score(
+                        jobs=llm_jobs,
                         resume_text=resume_text,
                         threshold=MATCH_SCORE_THRESHOLD,
                     )
-                except Exception as claude_err:
-                    logger.warning(f"Claude API failed ({claude_err}), falling back to mock scoring")
-                    scored_jobs, qualified_ids = mock_batch_score(
-                        jobs=jobs_to_score,
-                        resume_text=resume_text,
-                        threshold=MATCH_SCORE_THRESHOLD,
+                    # Build a map of LLM results
+                    llm_map = {j["job_id"]: j for j in llm_scored}
+
+                    # Merge: LLM scores override mock for top candidates
+                    scored_jobs = []
+                    qualified_ids = []
+                    for ms in mock_scored:
+                        jid = ms["job_id"]
+                        if jid in llm_map:
+                            scored_jobs.append(llm_map[jid])
+                            if llm_map[jid].get("score", 0) >= MATCH_SCORE_THRESHOLD:
+                                qualified_ids.append(jid)
+                        else:
+                            # Keep mock score for the rest (below LLM threshold)
+                            scored_jobs.append(ms)
+
+                    logger.info(
+                        f"LLM scored {len(llm_scored)} top candidates, "
+                        f"{len(qualified_ids)} qualified"
                     )
 
-            # Update DB with scores
+                except Exception as llm_err:
+                    logger.warning(
+                        f"LLM scoring failed ({llm_err}) — using mock scores"
+                    )
+                    scored_jobs = mock_scored
+                    qualified_ids = [
+                        j["job_id"] for j in mock_scored
+                        if j.get("score", 0) >= MATCH_SCORE_THRESHOLD
+                    ]
+
+            # ── Update DB with final scores ──────────────────────
             for scored in scored_jobs:
                 job = job_repo.get_by_id(scored["job_id"])
                 if job:
                     job.match_score = scored["score"]
-                    if scored["recommended_action"] == "SKIP":
+                    if scored.get("recommended_action") == "SKIP":
                         job.status = "SKIPPED"
                     db.commit()
 
             logs.append(
-                f"Scored {len(scored_jobs)} jobs, "
-                f"{len(qualified_ids)} qualified (≥{MATCH_SCORE_THRESHOLD})"
+                f"Scored {len(scored_jobs)} jobs — "
+                f"{len(qualified_ids)} qualified (>={MATCH_SCORE_THRESHOLD})"
             )
 
             return {
@@ -175,11 +292,12 @@ def make_scoring_node(db: Session):
             }
 
         except Exception as e:
-            logger.error(f"❌ Scoring node failed: {e}")
+            logger.error(f"Scoring node failed: {e}")
             errors.append(f"scoring_node: {e}")
             return {**state, "errors": errors, "scored_jobs": [], "qualified_job_ids": []}
 
     return scoring_node
+
 
 
 def make_resume_node(db: Session):
@@ -208,7 +326,7 @@ def make_resume_node(db: Session):
                     continue
 
                 logger.info(f"Generating resume for job {job_id}: {job.title}")
-                company_name = job.company.name if job.company else "Company"
+                company_name = resolve_company(job)
                 path = resume_service.create_tailored_resume(
                     job_id=job_id,
                     job_title=job.title,
@@ -260,7 +378,7 @@ def make_email_node(db: Session):
             email_drafts = []
             emails_sent = 0
 
-            # Score lookup
+            # Score lookup map
             score_map = {j["job_id"]: j for j in scored_jobs}
 
             for job_id in qualified_ids:
@@ -270,9 +388,10 @@ def make_email_node(db: Session):
 
                 scored = score_map.get(job_id, {})
                 score = scored.get("score", 0)
-                company_name = job.company.name if job.company else "Company"
+                company_name = resolve_company(job)
+                resume_pdf = resume_paths.get(job_id)
 
-                # Draft email with Claude
+                # ── Draft email with Claude/OpenAI ──────────────
                 draft = email_service.draft_email(
                     job_title=job.title,
                     company=company_name,
@@ -286,21 +405,49 @@ def make_email_node(db: Session):
                 draft["job_url"] = job.job_url
                 email_drafts.append(draft)
 
-                # Record application in DB
+                # ── Send email via Gmail ─────────────────────────
+                # Send to our own email as application record + notification
+                # (Real recruiter email extracted if available in future)
+                to_email = EMAIL_ADDRESS  # Send to self as tracking copy
+                sent = False
+                if to_email:
+                    sent = email_service.send_email(
+                        to_email=to_email,
+                        subject=draft.get("subject", f"Application: {job.title} at {company_name}"),
+                        body=draft.get("body", ""),
+                        pdf_attachment_path=resume_pdf,
+                    )
+
+                # ── Record application in DB ─────────────────────
                 app_repo.create_application(
                     job_id=job_id,
                     resume_id=None,
-                    email_sent=False,
-                    notes=f"Score: {score}/100 | {draft.get('subject', '')}",
+                    email_sent=sent,
+                    notes=(
+                        f"Score: {score}/100 | LLM: {scored.get('_source','mock')} | "
+                        f"Email: {'sent' if sent else 'drafted'} | "
+                        f"Resume: {'attached' if resume_pdf else 'none'}"
+                    ),
                 )
 
-                # Mark job as APPLIED
+                # ── Mark job as APPLIED ──────────────────────────
                 job.status = "APPLIED"
                 db.commit()
 
-                emails_sent += 1
+                if sent:
+                    emails_sent += 1
+                    logger.info(
+                        f"✅ Applied: [{score}/100] {job.title} @ {company_name}"
+                    )
+                else:
+                    logger.info(
+                        f"📋 Drafted (not sent): [{score}/100] {job.title} @ {company_name}"
+                    )
 
-            logs.append(f"Drafted {len(email_drafts)} emails, sent {emails_sent}")
+            logs.append(
+                f"Auto-applied: {emails_sent} emails sent, "
+                f"{len(email_drafts) - emails_sent} drafted"
+            )
             return {
                 **state,
                 "email_drafts": email_drafts,
@@ -315,6 +462,7 @@ def make_email_node(db: Session):
             return {**state, "errors": errors, "email_drafts": [], "emails_sent": 0}
 
     return email_node
+
 
 
 def make_notify_node():

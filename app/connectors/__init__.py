@@ -10,6 +10,7 @@ from app.connectors import (  # noqa: F401
     remotive_connector,
     himalayas_connector,
     naukri_connector,
-    hirist_connector,
+    hirist_connector,      # Arbeitnow (replaced Hirist — no auth needed)
     tier5_connector,
+    adzuna_connector,      # Free India API — needs ADZUNA_APP_ID + ADZUNA_APP_KEY in .env
 )
