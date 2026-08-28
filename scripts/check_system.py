@@ -45,4 +45,15 @@ print(f"Scored: {scored}")
 print(f"Qualified (>=65): {qualified}")
 print(f"Applied: {applied}")
 print()
+print("=== 5. Playwright Browser Auto-Apply Test ===")
+try:
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=True)
+        print("Playwright Chromium: OK (Ready for ATS Web Forms)")
+        b.close()
+except Exception as e:
+    print(f"Playwright Chromium: FAILED ({e})")
+
+print()
 print("=== ALL CHECKS DONE ===")

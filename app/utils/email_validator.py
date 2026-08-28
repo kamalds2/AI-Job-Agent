@@ -43,12 +43,18 @@ PREFIX_VARIATIONS = ["hr", "careers", "talent", "recruiting", "jobs", "hiring"]
 def extract_emails_from_text(text: str) -> list[str]:
     """
     Extract valid recruiter/contact email addresses from any plain text or HTML.
+    Handles standard emails as well as obfuscated formats (e.g. 'recruiter [at] company [dot] com').
     Filters out image file extensions (.png, .jpg) and noisy system emails.
     """
     if not text:
         return []
 
-    found = EMAIL_REGEX.findall(text)
+    # De-obfuscate common recruiter formats like: [at], (at), [dot], (dot)
+    normalized_text = text
+    normalized_text = re.sub(r"\s*\[at\]\s*|\s*\(at\)\s*|\s+at\s+", "@", normalized_text, flags=re.IGNORECASE)
+    normalized_text = re.sub(r"\s*\[dot\]\s*|\s*\(dot\)\s*|\s+dot\s+", ".", normalized_text, flags=re.IGNORECASE)
+
+    found = EMAIL_REGEX.findall(normalized_text)
     valid = []
     seen = set()
 

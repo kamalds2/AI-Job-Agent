@@ -161,7 +161,23 @@ class ApplyService:
                 "message": f"DRY RUN: Would apply to {job_title} @ {company_name}",
             }
 
-        # 1. Try Greenhouse
+        # 0. Primary: Try Playwright Headless Browser Auto-Apply (Bypasses Cloudflare & form JS)
+        try:
+            from app.services.browser_apply_service import BrowserApplyService
+            browser_service = BrowserApplyService(headless=True)
+            browser_result = await browser_service.apply(
+                job_url=job_url,
+                job_title=job_title,
+                company_name=company_name,
+                resume_pdf_path=resume_pdf_path or "",
+                cover_letter=cover_letter,
+            )
+            if browser_result.get("success"):
+                return browser_result
+        except Exception as be:
+            logger.debug(f"[Apply] Playwright browser apply skipped: {be}")
+
+        # 1. Try Greenhouse REST API
         gh_info = extract_greenhouse_info(job_url)
         if gh_info:
             result = await self._apply_greenhouse(
