@@ -33,41 +33,54 @@ logger = logging.getLogger(__name__)
 
 def company_from_url(url: str) -> str:
     """
-    Extract company name from ATS job board URLs when company_id is NULL.
+    Extract company name from job board or company career URLs.
     Examples:
-      greenhouse.io/anthropic/...  → Anthropic
-      lever.co/stripe/...          → Stripe
-      ashbyhq.com/openai/...       → OpenAI
-      stripe.com/jobs/...          → Stripe
+      job-boards.greenhouse.io/anthropic/...  → Anthropic
+      jobs.lever.co/bazaarvoice/...           → Bazaarvoice
+      jobs.ashbyhq.com/perplexity-ai/...      → Perplexity AI
+      stripe.com/jobs/...                     → Stripe
+      careers.airbnb.com/positions/...        → Airbnb
     """
     if not url:
-        return "Unknown"
+        return "Company"
     url_lower = url.lower()
 
-    # Greenhouse: job-boards.greenhouse.io/COMPANY/...
+    # Greenhouse: greenhouse.io/{company}/...
     m = re.search(r"greenhouse\.io/([a-z0-9_-]+)/", url_lower)
     if m:
         return m.group(1).replace("-", " ").title()
 
-    # Lever: jobs.lever.co/COMPANY/...
+    # Lever: lever.co/{company}/...
     m = re.search(r"lever\.co/([a-z0-9_-]+)/", url_lower)
     if m:
         return m.group(1).replace("-", " ").title()
 
-    # Ashby: jobs.ashbyhq.com/COMPANY/...
+    # Ashby: ashbyhq.com/{company}/...
     m = re.search(r"ashbyhq\.com/([a-z0-9_-]+)/", url_lower)
     if m:
         return m.group(1).replace("-", " ").title()
 
-    # Direct company domains (stripe.com, coinbase.com, etc.)
-    m = re.search(r"https?://(?:www\.)?([a-z0-9_-]+)\.(com|io|co|ai|dev)/", url_lower)
+    # Workday: {company}.wdN.myworkdayjobs.com/...
+    m = re.search(r"https?://([a-z0-9_-]+)\.wd\d+\.myworkdayjobs\.com", url_lower)
     if m:
-        domain = m.group(1)
-        # Skip generic ATS domains
-        if domain not in {"greenhouse", "lever", "ashby", "workday", "indeed", "linkedin", "jobvite"}:
-            return domain.replace("-", " ").title()
+        return m.group(1).replace("-", " ").title()
 
-    return "Unknown"
+    # General domain parsing (e.g. careers.airbnb.com, stripe.com)
+    try:
+        from urllib.parse import urlparse
+        hostname = urlparse(url_lower).hostname or ""
+        parts = hostname.split(".")
+        if len(parts) >= 2:
+            # Handle careers.airbnb.com -> airbnb, or stripe.com -> stripe
+            domain_part = parts[-2]
+            if domain_part in {"greenhouse", "lever", "ashby", "workday", "indeed", "linkedin", "jobvite", "remoteok", "weworkremotely", "arbeitnow", "himalayas", "naukri", "adzuna"}:
+                return "Company"
+            return domain_part.replace("-", " ").title()
+    except Exception:
+        pass
+
+    return "Company"
+
 
 
 def resolve_company(job) -> str:
@@ -365,20 +378,24 @@ def make_email_node(db: Session):
         resume_paths = state.get("resume_paths", {})
 
         if not qualified_ids:
-            logs.append("No qualified jobs for email")
-            return {**state, "email_drafts": [], "emails_sent": 0, "logs": logs}
+            logs.append("No qualified jobs to apply to")
+            return {**state, "email_drafts": [], "emails_sent": 0, "direct_applied": 0, "logs": logs}
 
         try:
+            import asyncio as _asyncio
+            from app.services.apply_service import ApplyService, guess_hr_email
+
             job_repo = JobRepository(db)
             app_repo = ApplicationRepository(db)
             email_service = EmailService()
+            apply_service = ApplyService()
             resume_service = ResumeService()
             resume_text = resume_service.extract_resume_text()
 
             email_drafts = []
             emails_sent = 0
+            direct_applied = 0
 
-            # Score lookup map
             score_map = {j["job_id"]: j for j in scored_jobs}
 
             for job_id in qualified_ids:
@@ -391,7 +408,7 @@ def make_email_node(db: Session):
                 company_name = resolve_company(job)
                 resume_pdf = resume_paths.get(job_id)
 
-                # ── Draft email with Claude/OpenAI ──────────────
+                # ── Step 1: Draft cover letter / email ───────────
                 draft = email_service.draft_email(
                     job_title=job.title,
                     company=company_name,
@@ -400,69 +417,130 @@ def make_email_node(db: Session):
                     match_score=score,
                     recruiter_name=None,
                 )
-
+                cover_letter = draft.get("body", "")
+                subject = draft.get("subject", f"Application: {job.title} at {company_name}")
                 draft["job_id"] = job_id
                 draft["job_url"] = job.job_url
                 email_drafts.append(draft)
 
-                # ── Send email via Gmail ─────────────────────────
-                # Send to our own email as application record + notification
-                # (Real recruiter email extracted if available in future)
-                to_email = EMAIL_ADDRESS  # Send to self as tracking copy
-                sent = False
-                if to_email:
-                    sent = email_service.send_email(
-                        to_email=to_email,
-                        subject=draft.get("subject", f"Application: {job.title} at {company_name}"),
-                        body=draft.get("body", ""),
+                apply_method = "none"
+                apply_success = False
+
+                # ── Step 2: Try direct API apply (Greenhouse/Lever/Ashby) ──
+                try:
+                    import concurrent.futures
+                    try:
+                        loop = asyncio.get_running_loop()
+                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                            apply_result = pool.submit(
+                                asyncio.run,
+                                apply_service.apply(
+                                    job_url=job.job_url,
+                                    company_name=company_name,
+                                    job_title=job.title,
+                                    cover_letter=cover_letter,
+                                    resume_pdf_path=resume_pdf,
+                                ),
+                            ).result()
+                    except RuntimeError:
+                        apply_result = asyncio.run(
+                            apply_service.apply(
+                                job_url=job.job_url,
+                                company_name=company_name,
+                                job_title=job.title,
+                                cover_letter=cover_letter,
+                                resume_pdf_path=resume_pdf,
+                            )
+                        )
+                    apply_method = apply_result.get("method", "none")
+                    apply_success = apply_result.get("success", False)
+                    if apply_success:
+                        direct_applied += 1
+                        logger.info(
+                            f"[APPLIED via {apply_method}] [{score}/100] "
+                            f"{job.title} @ {company_name}"
+                        )
+                except Exception as ae:
+                    logger.warning(f"Direct apply failed for {job.title}: {ae}")
+
+                # ── Step 3: Send cold email to company HR ────────
+                # Prioritize explicit emails in JD/post, then DNS-verified hr@/careers@ (.in, .co, .com)
+                hr_emails = guess_hr_email(company_name, job.job_url, jd_text=job.description or "")
+                primary_hr_email = hr_emails[0] if hr_emails else None
+                sent_to_hr = False
+
+                if primary_hr_email:
+                    sent_to_hr = email_service.send_email(
+                        to_email=primary_hr_email,
+                        subject=subject,
+                        body=cover_letter,
+                        pdf_attachment_path=resume_pdf,
+                    )
+                    if sent_to_hr:
+                        emails_sent += 1
+                        logger.info(
+                            f"[EMAIL -> HR] [{score}/100] {job.title} @ {company_name} "
+                            f"-> {primary_hr_email}"
+                        )
+
+                # ── Step 4: Send BCC tracking copy to self ───────
+                if EMAIL_ADDRESS and (sent_to_hr or apply_success):
+                    tracking_subject = (
+                        f"[APPLIED] [{score}/100] {job.title} @ {company_name} "
+                        f"| Method: {apply_method}"
+                    )
+                    tracking_body = (
+                        f"Application submitted!\n\n"
+                        f"Role: {job.title}\n"
+                        f"Company: {company_name}\n"
+                        f"Score: {score}/100\n"
+                        f"Apply method: {apply_method}\n"
+                        f"HR email sent to: {primary_hr_email or 'N/A'}\n"
+                        f"Job URL: {job.job_url}\n\n"
+                        f"--- Cover Letter Sent ---\n{cover_letter}"
+                    )
+                    email_service.send_email(
+                        to_email=EMAIL_ADDRESS,
+                        subject=tracking_subject,
+                        body=tracking_body,
                         pdf_attachment_path=resume_pdf,
                     )
 
-                # ── Record application in DB ─────────────────────
+                # ── Step 5: Record in DB + mark APPLIED ─────────
                 app_repo.create_application(
                     job_id=job_id,
                     resume_id=None,
-                    email_sent=sent,
+                    email_sent=sent_to_hr,
                     notes=(
-                        f"Score: {score}/100 | LLM: {scored.get('_source','mock')} | "
-                        f"Email: {'sent' if sent else 'drafted'} | "
+                        f"Score: {score}/100 | "
+                        f"Board: {apply_method} ({'OK' if apply_success else 'FAIL'}) | "
+                        f"HR email: {primary_hr_email or 'N/A'} ({'sent' if sent_to_hr else 'failed'}) | "
                         f"Resume: {'attached' if resume_pdf else 'none'}"
                     ),
                 )
-
-                # ── Mark job as APPLIED ──────────────────────────
                 job.status = "APPLIED"
                 db.commit()
 
-                if sent:
-                    emails_sent += 1
-                    logger.info(
-                        f"✅ Applied: [{score}/100] {job.title} @ {company_name}"
-                    )
-                else:
-                    logger.info(
-                        f"📋 Drafted (not sent): [{score}/100] {job.title} @ {company_name}"
-                    )
-
             logs.append(
-                f"Auto-applied: {emails_sent} emails sent, "
-                f"{len(email_drafts) - emails_sent} drafted"
+                f"Applied: {direct_applied} via board API, "
+                f"{emails_sent} HR emails sent"
             )
             return {
                 **state,
                 "email_drafts": email_drafts,
                 "emails_sent": emails_sent,
+                "direct_applied": direct_applied,
                 "logs": logs,
                 "errors": errors,
             }
 
         except Exception as e:
-            logger.error(f"❌ Email node failed: {e}")
-            errors.append(f"email_node: {e}")
+            logger.error(f"Apply node failed: {e}")
+            errors.append(f"apply_node: {e}")
             return {**state, "errors": errors, "email_drafts": [], "emails_sent": 0}
 
-    return email_node
 
+    return email_node
 
 
 def make_notify_node():

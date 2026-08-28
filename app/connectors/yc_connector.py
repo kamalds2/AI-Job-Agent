@@ -269,6 +269,11 @@ class YCombinatorConnector(BaseConnector):
             except Exception:
                 pass
 
+        from app.utils.email_validator import extract_emails_from_text
+        emails = extract_emails_from_text(text)
+        email_str = f"\n\nDirect Contact Emails: {', '.join(emails)}" if emails else ""
+        clean_desc = f"{text[:2000]}{email_str}"
+
         return JobData(
             title=title[:120],
             company=company[:100],
@@ -277,8 +282,8 @@ class YCombinatorConnector(BaseConnector):
             experience=None,
             employment_type=None,
             salary=None,
-            description=text[:2000],
-            job_url=url,
+            description=clean_desc,
+            job_url=url or f"https://news.ycombinator.com/item?id={item.get('id')}",
             source="HN-WhoIsHiring",
             posted_date=posted_date or date.today(),
             skills=[],

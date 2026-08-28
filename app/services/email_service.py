@@ -21,9 +21,12 @@ import os
 import httpx
 
 from app.config.settings import (
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
     ANTHROPIC_API_KEY,
     OPENAI_API_KEY,
     CLAUDE_MODEL,
+    LLM_PROVIDER,
     EMAIL_ADDRESS,
     GMAIL_CLIENT_ID,
     GMAIL_CLIENT_SECRET,
@@ -35,6 +38,7 @@ from app.prompts.email_prompt import (
     EMAIL_DRAFTING_SYSTEM_PROMPT,
     build_email_user_prompt,
 )
+from app.utils.gemini_client import GeminiClient, get_gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +52,9 @@ def _make_anthropic_client():
         return None
     try:
         import anthropic
-        return anthropic.Anthropic(
-            api_key=ANTHROPIC_API_KEY,
-            http_client=httpx.Client(verify=False) if sys.platform == "win32" else None,
-        )
-    except ImportError:
+        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    except Exception as e:
+        logger.warning(f"Could not initialize Anthropic client: {e}")
         return None
 
 
@@ -110,11 +112,12 @@ kamalkumar.doddi@gmail.com
 
 class EmailService:
     """
-    Drafts personalized cold emails via Claude → OpenAI → Template.
+    Drafts personalized cold emails via Gemini → Claude → OpenAI → Template.
     Sends via Gmail OAuth2 API.
     """
 
     def __init__(self):
+        self._gemini = get_gemini_client()
         self._claude = _make_anthropic_client()
         self._openai = _make_openai_client()
         self._access_token: Optional[str] = None
@@ -131,7 +134,7 @@ class EmailService:
         recruiter_name: Optional[str] = None,
     ) -> dict:
         """
-        Draft a cold outreach email. Cascade: Claude → OpenAI → Template.
+        Draft a cold outreach email. Cascade: Gemini → Claude → OpenAI → Template.
         """
         user_prompt = build_email_user_prompt(
             job_title=job_title,
@@ -142,43 +145,69 @@ class EmailService:
             match_score=match_score,
         )
 
-        # 1. Try Claude
-        if self._claude:
-            try:
-                msg = self._claude.messages.create(
-                    model=CLAUDE_MODEL,
-                    max_tokens=1024,
-                    system=EMAIL_DRAFTING_SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": user_prompt}],
-                )
-                draft = self._parse_llm_response(msg.content[0].text)
-                if draft:
-                    draft["_source"] = "claude"
-                    logger.info(f"[Claude] Email drafted for '{job_title}' @ {company}")
-                    return draft
-            except Exception as e:
-                logger.warning(f"[Claude] Email draft failed: {e}")
+        pref = LLM_PROVIDER.lower()
+        if pref == "gemini":
+            providers = ["gemini"]
+        elif pref == "claude":
+            providers = ["claude"]
+        elif pref == "openai":
+            providers = ["openai"]
+        else:
+            providers = ["gemini", "claude", "openai"]
 
-        # 2. Try OpenAI
-        if self._openai:
-            try:
-                resp = self._openai.chat.completions.create(
-                    model="gpt-4o-mini",
-                    max_tokens=1024,
-                    messages=[
-                        {"role": "system", "content": EMAIL_DRAFTING_SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                )
-                draft = self._parse_llm_response(resp.choices[0].message.content)
-                if draft:
-                    draft["_source"] = "openai"
-                    logger.info(f"[OpenAI] Email drafted for '{job_title}' @ {company}")
-                    return draft
-            except Exception as e:
-                logger.warning(f"[OpenAI] Email draft failed: {e}")
+        for provider in providers:
+            if provider == "gemini" and self._gemini:
+                try:
+                    resp_text = self._gemini.generate_content(
+                        prompt=user_prompt,
+                        system_instruction=EMAIL_DRAFTING_SYSTEM_PROMPT,
+                        json_mode=True,
+                        max_output_tokens=1024,
+                    )
+                    if resp_text:
+                        draft = self._parse_llm_response(resp_text)
+                        if draft:
+                            draft["_source"] = f"gemini ({self._gemini.model})"
+                            logger.info(f"[Gemini] Email drafted for '{job_title}' @ {company}")
+                            return draft
+                except Exception as e:
+                    logger.warning(f"[Gemini] Email draft failed: {e}")
 
-        # 3. Professional template fallback
+            elif provider == "claude" and self._claude:
+                try:
+                    msg = self._claude.messages.create(
+                        model=CLAUDE_MODEL,
+                        max_tokens=1024,
+                        system=EMAIL_DRAFTING_SYSTEM_PROMPT,
+                        messages=[{"role": "user", "content": user_prompt}],
+                    )
+                    draft = self._parse_llm_response(msg.content[0].text)
+                    if draft:
+                        draft["_source"] = "claude"
+                        logger.info(f"[Claude] Email drafted for '{job_title}' @ {company}")
+                        return draft
+                except Exception as e:
+                    logger.warning(f"[Claude] Email draft failed: {e}")
+
+            elif provider == "openai" and self._openai:
+                try:
+                    resp = self._openai.chat.completions.create(
+                        model="gpt-4o-mini",
+                        max_tokens=1024,
+                        messages=[
+                            {"role": "system", "content": EMAIL_DRAFTING_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                    )
+                    draft = self._parse_llm_response(resp.choices[0].message.content)
+                    if draft:
+                        draft["_source"] = "openai"
+                        logger.info(f"[OpenAI] Email drafted for '{job_title}' @ {company}")
+                        return draft
+                except Exception as e:
+                    logger.warning(f"[OpenAI] Email draft failed: {e}")
+
+        # Fallback template
         logger.info(f"[Template] Using fallback email for '{job_title}' @ {company}")
         return _template_email(job_title, company, match_score, recruiter_name)
 

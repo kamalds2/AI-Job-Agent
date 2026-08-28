@@ -14,6 +14,7 @@ print()
 print("=== 2. Scoring Service ===")
 from app.services.scoring_service import ScoringService
 s = ScoringService()
+print(f"Gemini available: {s._gemini is not None and s._gemini.is_configured} (model: {s._gemini.model if s._gemini else 'none'})")
 print(f"Claude available: {s._claude is not None}")
 print(f"OpenAI available: {s._openai is not None}")
 

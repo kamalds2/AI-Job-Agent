@@ -23,8 +23,12 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 
 from app.config.settings import (
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
     ANTHROPIC_API_KEY,
+    OPENAI_API_KEY,
     CLAUDE_MODEL,
+    LLM_PROVIDER,
     MASTER_RESUME_PATH,
     RESUMES_DIR,
     CANDIDATE_NAME,
@@ -33,26 +37,54 @@ from app.prompts.resume_prompt import (
     RESUME_TAILORING_SYSTEM_PROMPT,
     build_resume_user_prompt,
 )
+from app.utils.gemini_client import GeminiClient, get_gemini_client
 
 logger = logging.getLogger(__name__)
 
 
 def _make_anthropic_client():
-    """SSL-patched Anthropic client for Windows environments."""
-    if sys.platform == "win32":
-        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, http_client=httpx.Client(verify=False))
-    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    if not ANTHROPIC_API_KEY:
+        return None
+    try:
+        import anthropic
+        return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    except Exception as e:
+        logger.warning(f"Could not initialize Anthropic client: {e}")
+        return None
+
+
+def _make_openai_client():
+    """SSL-patched OpenAI client for Windows environments."""
+    if not OPENAI_API_KEY:
+        return None
+    try:
+        import openai
+        if sys.platform == "win32":
+            return openai.OpenAI(api_key=OPENAI_API_KEY, http_client=httpx.Client(verify=False))
+        return openai.OpenAI(api_key=OPENAI_API_KEY)
+    except Exception:
+        return None
+
+
+def _clean_json_str(content: str) -> str:
+    """Clean markdown JSON fences from LLM output."""
+    if "```json" in content:
+        return content.split("```json")[1].split("```")[0].strip()
+    elif "```" in content:
+        return content.split("```")[1].split("```")[0].strip()
+    return content.strip()
 
 
 class ResumeService:
     """
     Reads master PDF resume and generates ATS-tailored versions per job.
+    Falls back to master PDF if LLMs are unavailable.
     """
 
     def __init__(self):
-        if not ANTHROPIC_API_KEY:
-            raise ValueError("ANTHROPIC_API_KEY is not set in .env")
-        self.client = _make_anthropic_client()
+        self.gemini_client = get_gemini_client()
+        self.claude_client = _make_anthropic_client()
+        self.openai_client = _make_openai_client()
         self.model = CLAUDE_MODEL
         self.master_path = Path(MASTER_RESUME_PATH)
         self.resumes_dir = Path(RESUMES_DIR)
@@ -82,9 +114,9 @@ class ResumeService:
         job_description: str,
     ) -> dict:
         """
-        Generate a tailored resume for a specific job using Claude.
+        Generate a tailored resume for a specific job using Gemini / Claude / OpenAI.
 
-        Returns: Claude's tailored resume data as dict
+        Returns: Tailored resume data as dict
         """
         resume_text = self.extract_resume_text()
 
@@ -95,29 +127,67 @@ class ResumeService:
             resume_text=resume_text,
         )
 
-        try:
-            message = self.client.messages.create(
-                model=self.model,
-                max_tokens=2048,
-                system=RESUME_TAILORING_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_prompt}],
-            )
+        pref = LLM_PROVIDER.lower()
+        if pref == "gemini":
+            providers = ["gemini"]
+        elif pref == "claude":
+            providers = ["claude"]
+        elif pref == "openai":
+            providers = ["openai"]
+        else:
+            providers = ["gemini", "claude", "openai"]
 
-            content = message.content[0].text.strip()
+        for provider in providers:
+            if provider == "gemini" and self.gemini_client:
+                try:
+                    resp_text = self.gemini_client.generate_content(
+                        prompt=user_prompt,
+                        system_instruction=RESUME_TAILORING_SYSTEM_PROMPT,
+                        json_mode=True,
+                        max_output_tokens=2048,
+                    )
+                    if resp_text:
+                        clean_text = _clean_json_str(resp_text)
+                        tailored_data = json.loads(clean_text)
+                        logger.info(f"[Gemini] Tailored resume generated for '{job_title}' @ {company}")
+                        return tailored_data
+                except Exception as e:
+                    logger.warning(f"[Gemini] Resume tailoring failed: {e}")
 
-            # Extract JSON
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
+            elif provider == "claude" and self.claude_client:
+                try:
+                    message = self.claude_client.messages.create(
+                        model=self.model,
+                        max_tokens=2048,
+                        system=RESUME_TAILORING_SYSTEM_PROMPT,
+                        messages=[{"role": "user", "content": user_prompt}],
+                    )
+                    content = _clean_json_str(message.content[0].text)
+                    tailored_data = json.loads(content)
+                    logger.info(f"[Claude] Tailored resume generated for '{job_title}' @ {company}")
+                    return tailored_data
+                except Exception as e:
+                    logger.warning(f"[Claude] Resume tailoring failed: {e}")
 
-            tailored_data = json.loads(content)
-            logger.info(f"✅ Tailored resume generated for '{job_title}' @ {company}")
-            return tailored_data
+            elif provider == "openai" and self.openai_client:
+                try:
+                    resp = self.openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        max_tokens=2048,
+                        messages=[
+                            {"role": "system", "content": RESUME_TAILORING_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                    )
+                    content = _clean_json_str(resp.choices[0].message.content)
+                    tailored_data = json.loads(content)
+                    logger.info(f"[OpenAI] Tailored resume generated for '{job_title}' @ {company}")
+                    return tailored_data
+                except Exception as e:
+                    logger.warning(f"[OpenAI] Resume tailoring failed: {e}")
 
-        except Exception as e:
-            logger.error(f"❌ Resume tailoring failed: {e}")
-            return {}
+        return {}
+
 
     def generate_pdf(
         self,
@@ -243,20 +313,21 @@ class ResumeService:
         job_title: str,
         company: str,
         job_description: str,
-    ) -> str | None:
+    ) -> str:
         """
-        Full pipeline: tailor via Claude → generate PDF.
-        Returns path to generated PDF, or None on failure.
+        Full pipeline: tailor via Claude/OpenAI → generate PDF.
+        Falls back to master PDF if tailoring is unavailable.
         """
         try:
             tailored_data = self.tailor_resume(job_id, job_title, company, job_description)
-            if not tailored_data:
-                logger.warning(f"No tailored data for job {job_id}")
-                return None
-
-            pdf_path = self.generate_pdf(job_id, job_title, company, tailored_data)
-            return pdf_path
+            if tailored_data:
+                pdf_path = self.generate_pdf(job_id, job_title, company, tailored_data)
+                return pdf_path
+            else:
+                logger.info(f"Using master resume PDF for job {job_id} ({job_title})")
+                return str(self.master_path)
 
         except Exception as e:
-            logger.error(f"❌ create_tailored_resume failed for job {job_id}: {e}")
-            return None
+            logger.warning(f"Tailoring failed for job {job_id} ({e}) — using master resume PDF")
+            return str(self.master_path)
+

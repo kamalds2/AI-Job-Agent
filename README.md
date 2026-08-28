@@ -1,226 +1,156 @@
-# 🤖 AI Job Agent
+# 🤖 AI Job Agent (Autonomous 24/7 Career Automation)
 
-> **Autonomous AI-powered job search agent** — searches 9 job sources, scores jobs with Claude AI against your resume, generates tailored PDFs, drafts cold emails, sends WhatsApp alerts, and runs automatically every 6 hours.
-
----
-
-## Architecture
-
-```
-Scheduler (every 6h)
-        ↓
-  ┌─────────────────────────────────────────────────────────┐
-  │                   LangGraph Pipeline                     │
-  │                                                         │
-  │  1. Search ──► 2. Score ──► 3. Resume ──► 4. Email     │
-  │      ↓              ↓            ↓             ↓        │
-  │  9 Sources     Claude AI    PDF via       Gmail API     │
-  │                             ReportLab                   │
-  │                                                         │
-  │  5. Notify ──► 6. Report ──► END                        │
-  │      ↓              ↓                                   │
-  │  WhatsApp       Excel .xlsx                             │
-  └─────────────────────────────────────────────────────────┘
-```
-
-## Job Sources (9 Connectors)
-
-| Tier | Source | Method | Jobs/Run |
-|------|--------|--------|----------|
-| 1 | RemoteOK | Public API | ~100 |
-| 1 | Wellfound | GraphQL API | ~50 |
-| 1 | YCombinator | API + Scrape | ~30 |
-| 2 | **Greenhouse** (15+ companies) | ATS API | ~800 |
-| 2 | **Lever** (15+ companies) | ATS API | ~200 |
-| 2 | **Ashby** (15+ companies) | ATS API | ~240 |
-| 3 | WeWorkRemotely | RSS Feed | ~200 |
-| 3 | Remotive | Public API | ~50 |
-| 3 | Himalayas | Public API | ~50 |
-
-**Greenhouse companies:** Anthropic, OpenAI, Stripe, Airbnb, DoorDash, Plaid, Gusto, HashiCorp, GitLab, Figma, Notion, Confluent, Twilio, Datadog, Segment
-
-**Lever companies:** Netflix, Shopify, Atlassian, Dropbox, Reddit, GitHub, Elastic, MongoDB, Grafana, Sentry, Vercel, Cloudflare, Razorpay, Postman
-
-**Ashby companies:** Linear, Retool, Rippling, Ramp, Brex, Scale AI, Cohere, Mistral AI, Runway, Replit, dbt Labs, Airbyte, Prefect, Modal Labs, Baseten
+> **Autonomous AI-powered job search and auto-apply agent** — scrapes 14 job sources (including ATS APIs and daily LinkedIn hiring posts), scores jobs with **Google Gemini 3.6 Flash** against your resume with strict 0–2 years experience filtering, generates tailored PDF resumes via ReportLab, auto-submits to ATS platforms (Greenhouse, Lever, Ashby), verifies and sends cold emails to verified HR inboxes via Gmail API, and runs automatically 24/7 every 6 hours.
 
 ---
 
-## Quick Start
+## ⚡ Key Features
 
-### 1. Install Dependencies
+- **🌐 14 Multi-Tier Job Connectors**:
+  - Direct ATS APIs (Greenhouse, Lever, Ashby) across 50+ tech companies.
+  - **LinkedIn Hiring Posts Scraper** (`linkedin_posts`) for direct recruiter posts with email IDs.
+  - **YCombinator / Hacker News** ("Who is Hiring" + Job Stories with contact email parser).
+  - Aggregators: Adzuna (India), RemoteOK, Wellfound, WeWorkRemotely, Remotive, Himalayas, Naukri, Arbeitnow, Tier 5 Careers.
+- **🧠 Google Gemini 3.6 Flash Scoring**:
+  - Scores job descriptions (0–100) with detailed match breakdown and missing skills.
+  - **Strict 0–2 Years Experience Target**: Excludes senior/lead/director roles (>2–3+ yrs) and focuses on Junior, Associate, Entry-Level, and Early Career Backend/Java/Python/AI positions.
+- **📄 ATS Tailored PDF Resume Generation**:
+  - Uses ReportLab to generate customized, ATS-compliant PDF resumes tailored to the matched job description.
+- **📧 Smart Multi-TLD HR Email Discovery & Live DNS Validation**:
+  - Prioritizes explicit recruiter emails extracted from JDs and LinkedIn posts.
+  - Generates verified candidates: `hr@company.com`, `hr@company.in`, `hr@company.co`, `careers@...`, `talent@...`.
+  - **DNS/MX Record Validation**: Tests recipient domains before queuing to ensure zero bounced emails.
+- **📬 Automated Applications**:
+  - Direct API submission for Greenhouse, Lever, and Ashby jobs.
+  - Direct email outreach with resume attached via authenticated **Gmail OAuth2 API**.
+- **⏰ 24/7 Fixed 6-Hour Cron Scheduler**:
+  - Automatically triggers at **06:00 AM, 12:00 PM (Noon), 06:00 PM, and 12:00 AM (Midnight) IST**.
+- **📊 Daily Excel Reporting**:
+  - Produces formatted `.xlsx` reports detailing fetched jobs, scores, application statuses, and links.
+
+---
+
+## 🏗️ Architecture
+
+```
+                 APScheduler Cron (06:00, 12:00, 18:00, 00:00 IST)
+                                      ↓
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                         LangGraph Pipeline                             │
+  │                                                                        │
+  │  1. Search ────► 2. Score ────► 3. Resume ────► 4. Apply / Outreach    │
+  │      ↓                ↓              ↓                   ↓             │
+  │  14 Connectors   Gemini Flash   Tailored PDF      • Direct ATS Form    │
+  │  (ATS, Posts,    (0-2 Yrs)      (ReportLab)       • Gmail OAuth2 to HR │
+  │   Aggregators)                                                         │
+  │                                                                        │
+  │  5. Notify ────► 6. Report ────► END                                   │
+  │      ↓                ↓                                                │
+  │   WhatsApp       Daily Excel                                           │
+  │  (Cloud API)     JobReport.xlsx                                        │
+  └────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔌 Job Sources (14 Active Connectors)
+
+| Connector | Type | Method | Description |
+|---|---|---|---|
+| **`greenhouse`** | Direct ATS | REST API | 15+ tech companies (Anthropic, OpenAI, Stripe, Figma, GitLab...) |
+| **`lever`** | Direct ATS | REST API | 15+ tech companies (Netflix, MongoDB, Vercel, Cloudflare, Postman...) |
+| **`ashby`** | Direct ATS | REST API | 15+ tech companies (Linear, Retool, Brex, Ramp, Mistral AI, Hex...) |
+| **`linkedin_posts`** | Social / Posts | Search Scraper | Recruiter hiring posts for 0-2 yrs with email IDs |
+| **`ycombinator`** | Startups / HN | Firebase & Scrape | HN Job stories + monthly "Who is Hiring" threads |
+| **`adzuna`** | Aggregator | REST API | India & Global tech jobs (Free API tier) |
+| **`wellfound`** | Startups | GraphQL / API | AngelList tech startup postings |
+| **`weworkremotely`** | Remote | RSS Feed | Remote developer & engineering roles |
+| **`remotive`** | Remote | REST API | Curated software developer listings |
+| **`arbeitnow`** | Tech Board | REST API | Tech & backend job feed |
+| **`remoteok`** | Remote | REST API | Global remote software engineer jobs |
+| **`himalayas`** | Remote | REST API | Tech & remote developer jobs |
+| **`naukri`** | India Board | REST / Feed | India-focused tech postings |
+| **`tier5_careers`** | Enterprise | Scrape / API | Direct enterprise career listings |
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone & Set Up Python Environment
 ```bash
-cd c:\kamal\AI-Job-Agent
+git clone https://github.com/kamalds2/AI-Job-Agent.git
+cd AI-Job-Agent
+
+# Create virtual environment (Python 3.11+)
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\activate   # On Windows
+# source .venv/bin/activate # On Linux/macOS
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Configure `.env`
-```bash
-# Edit .env and add your keys:
-ANTHROPIC_API_KEY=sk-ant-...       # Required for AI scoring
-EMAIL_ADDRESS=your@gmail.com       # For email drafting
-GMAIL_REFRESH_TOKEN=...            # For sending emails (optional)
-WHATSAPP_TOKEN=...                 # For WhatsApp alerts (optional)
+### 2. Configure Environment (`.env`)
+Create a `.env` file with your credentials:
+```ini
+# LLM Provider (Primary: Gemini)
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-3.6-flash
+
+# Gmail OAuth2 (For sending cold outreach emails & tracking copies)
+GMAIL_CLIENT_ID=your_oauth_client_id
+GMAIL_CLIENT_SECRET=your_oauth_client_secret
+GMAIL_REFRESH_TOKEN=your_refresh_token
+EMAIL_ADDRESS=your_email@gmail.com
+
+# Adzuna API (Optional, for India search)
+ADZUNA_APP_ID=your_app_id
+ADZUNA_APP_KEY=your_app_key
+
+# Candidate Target Profile
+CANDIDATE_NAME="Kamal Kumar"
+CANDIDATE_PHONE="+91XXXXXXXXXX"
+CANDIDATE_EXPERIENCE_YEARS="0-2 years"
 ```
 
-### 3. Set Up Database
+### 3. Initialize Database
 ```bash
 python scripts/setup_db.py
+python scripts/check_system.py
 ```
 
-### 4. Run the Agent
+### 4. Run the 24/7 Server or CLI Run
 ```bash
-# Start the server (auto-runs every 6 hours)
-python -m uvicorn main:app --host 0.0.0.0 --port 8000
+# Start 24/7 FastAPI Server with Background Scheduler:
+uvicorn main:app --host 0.0.0.0 --port 8000
 
-# OR run manually via CLI
-python scripts/run_agent.py              # Full run
-python scripts/run_agent.py --dry-run   # Test (no emails sent)
-python scripts/run_agent.py --search-only  # Just fetch jobs
+# OR trigger an on-demand full run via CLI:
+python scripts/run_agent.py
+
+# Test Gemini AI integration:
+python scripts/test_gemini.py
+
+# Refresh Gmail OAuth Token if needed:
+python scripts/setup_gmail_token.py
 ```
 
 ---
 
-## API Endpoints
+## 🌐 API Reference (FastAPI)
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Health check + scheduler status |
-| GET | `/docs` | Swagger UI |
-| POST | `/agent/run` | Trigger agent manually |
-| GET | `/agent/status` | Current agent + scheduler status |
-| GET | `/jobs/` | All jobs (filterable) |
-| GET | `/jobs/stats` | Total, new, applied, qualified counts |
-| GET | `/jobs/qualified` | Jobs above score threshold |
-| GET | `/applications/` | All applications |
-| GET | `/applications/stats` | Application statistics |
+|---|---|---|
+| `GET` | `/` | Health check, scheduler status, next scheduled run time |
+| `GET` | `/docs` | Interactive Swagger API documentation |
+| `POST` | `/agent/run` | Trigger an immediate manual agent execution |
+| `GET` | `/agent/status` | Current status of the agent pipeline and scheduler |
+| `GET` | `/jobs/` | List all discovered jobs (filterable by source, remote, etc.) |
+| `GET` | `/jobs/stats` | Aggregate database statistics (total, new, scored, qualified, applied) |
+| `GET` | `/jobs/qualified` | List top-scoring jobs matching the experience and skill criteria |
+| `GET` | `/applications/` | Application log history and delivery statuses |
 
 ---
 
-## Configuration
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `ANTHROPIC_API_KEY` | — | **Required** — Claude API key |
-| `CLAUDE_MODEL` | `claude-sonnet-4-5` | Model to use |
-| `MATCH_SCORE_THRESHOLD` | `65` | Min score to qualify (0-100) |
-| `MAX_APPLICATIONS_PER_RUN` | `10` | Max emails per run |
-| `SCHEDULER_INTERVAL_HOURS` | `6` | How often to run |
-| `DRY_RUN` | `false` | Set `true` to disable sending |
-| `DATABASE_URL` | `sqlite:///job_agent.db` | Database URL |
-
----
-
-## Gmail OAuth2 Setup (for sending emails)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create project → Enable Gmail API
-3. Create OAuth2 credentials (Desktop App)
-4. Download `credentials.json`
-5. Run: `python scripts/gmail_oauth.py` (generates refresh token)
-6. Add `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` to `.env`
-
-## WhatsApp Setup
-
-1. Go to [Meta for Developers](https://developers.facebook.com)
-2. Create App → Add WhatsApp product
-3. Get `Access Token` and `Phone Number ID`
-4. Add to `.env` as `WHATSAPP_TOKEN` and `WHATSAPP_PHONE_ID`
-5. Set `WHATSAPP_TO_NUMBER` to your number (e.g., `919XXXXXXXXXX`)
-
----
-
-## File Structure
-
-```
-AI-Job-Agent/
-├── main.py                          # FastAPI app + scheduler startup
-├── .env                             # Configuration (copy from .env template)
-├── requirements.txt
-│
-├── app/
-│   ├── agents/
-│   │   ├── state.py                 # LangGraph AgentState schema
-│   │   ├── nodes.py                 # All 6 pipeline node implementations
-│   │   └── orchestrator.py          # Graph builder + run_agent()
-│   │
-│   ├── connectors/
-│   │   ├── base_connector.py        # Abstract base class
-│   │   ├── registry.py              # @register_connector decorator
-│   │   ├── manager.py               # Runs all connectors concurrently
-│   │   ├── remoteok_connector.py
-│   │   ├── wellfound_connector.py
-│   │   ├── yc_connector.py
-│   │   ├── greenhouse_connector.py  # 15 companies
-│   │   ├── lever_connector.py       # 15 companies
-│   │   ├── ashby_connector.py       # 15 companies
-│   │   ├── weworkremotely_connector.py
-│   │   ├── remotive_connector.py
-│   │   └── himalayas_connector.py
-│   │
-│   ├── services/
-│   │   ├── scoring_service.py       # Claude AI job scoring
-│   │   ├── resume_service.py        # PDF resume generation
-│   │   ├── email_service.py         # Gmail OAuth2 email sending
-│   │   ├── whatsapp_service.py      # WhatsApp alerts
-│   │   ├── report_service.py        # Excel report generation
-│   │   └── scheduler_service.py     # APScheduler (every 6h)
-│   │
-│   ├── api/
-│   │   ├── jobs.py                  # Jobs CRUD + stats
-│   │   ├── agent.py                 # Agent control endpoints
-│   │   └── applications.py          # Applications tracking
-│   │
-│   ├── prompts/
-│   │   ├── scoring_prompt.py        # Job scoring prompt
-│   │   ├── resume_prompt.py         # Resume tailoring prompt
-│   │   └── email_prompt.py          # Email drafting prompt
-│   │
-│   ├── models/                      # SQLAlchemy ORM models
-│   ├── repositories/                # Database CRUD operations
-│   └── config/settings.py           # All configuration
-│
-├── resumes/
-│   └── Kamal_Kumar_Java_AI_Developer_ATS.pdf   # Master resume
-│
-├── reports/                         # Auto-generated Excel reports
-├── scripts/
-│   ├── run_agent.py                 # CLI runner
-│   └── setup_db.py                  # DB initialization
-```
-
----
-
-## Adding More Companies
-
-### Greenhouse
-Edit `app/connectors/greenhouse_connector.py`, add to `GREENHOUSE_COMPANIES`:
-```python
-{"token": "company-token", "name": "Company Name"},
-```
-Find the token from `https://boards.greenhouse.io/{token}/jobs`
-
-### Lever
-Edit `app/connectors/lever_connector.py`, add to `LEVER_COMPANIES`:
-```python
-{"token": "company-slug", "name": "Company Name"},
-```
-
-### Ashby
-Edit `app/connectors/ashby_connector.py`, add to `ASHBY_COMPANIES`:
-```python
-{"token": "company-slug", "name": "Company Name"},
-```
-
----
-
-## Customizing Scoring
-
-Edit `app/prompts/scoring_prompt.py` to adjust:
-- Target skills (Java, Spring Boot, Python, AWS, etc.)
-- Experience range
-- Preferred job types (remote, hybrid)
-- Geographic preferences (India, USA, remote)
-
-The default is optimized for: **Java/Spring Boot Backend + AWS/Cloud + AI/ML upskilling**
+## 📄 License
+MIT License. Created by [Kamal Kumar](https://github.com/kamalds2).

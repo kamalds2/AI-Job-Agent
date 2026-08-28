@@ -38,7 +38,7 @@ def _run_agent_job():
 
 
 def start_scheduler():
-    """Start the APScheduler background scheduler."""
+    """Start the APScheduler background scheduler configured for 6 AM, 12 PM, 6 PM, 12 AM IST."""
     global _scheduler
 
     if _scheduler and _scheduler.running:
@@ -47,19 +47,19 @@ def start_scheduler():
 
     _scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
 
-    # Run every N hours (default: 6)
+    # Run at fixed times: 06:00 AM, 12:00 PM (Noon), 06:00 PM, 12:00 AM (Midnight) IST
     _scheduler.add_job(
         _run_agent_job,
-        trigger=IntervalTrigger(hours=SCHEDULER_INTERVAL_HOURS),
+        trigger=CronTrigger(hour="0,6,12,18", minute="0", timezone="Asia/Kolkata"),
         id="job_agent_run",
-        name="AI Job Agent Run",
+        name="AI Job Agent 6-Hour Run (06:00, 12:00, 18:00, 00:00 IST)",
         replace_existing=True,
         max_instances=1,  # Only one run at a time
     )
 
     _scheduler.start()
     logger.info(
-        f"⏰ Scheduler started — running every {SCHEDULER_INTERVAL_HOURS} hours"
+        "⏰ Scheduler started — 24/7 fixed runs scheduled at 06:00 AM, 12:00 PM, 06:00 PM, 12:00 AM IST"
     )
 
 

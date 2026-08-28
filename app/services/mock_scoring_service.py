@@ -74,16 +74,36 @@ def mock_score_job(
         if kw in text:
             score += penalty
 
-    # Senior role bonus
+    # Senior/Lead/Principal/Executive title penalties (Candidate target is 0-2 years ONLY)
     title_lower = job_title.lower()
-    if any(t in title_lower for t in ["senior", "staff", "principal", "lead", "architect"]):
-        score += 5
-    if "junior" in title_lower or "intern" in title_lower:
-        score -= 15
+    if any(t in title_lower for t in ["senior", "staff", "principal", "lead", "architect", "director", "vp ", "vice president", "head of", "manager"]):
+        score -= 35
+
+    # Junior/Associate/Graduate/Entry-level role bonus
+    if any(t in title_lower for t in ["junior", "associate", "graduate", "entry level", "trainee", "intern"]):
+        score += 15
 
     # Remote/India bonus
     if "remote" in text or "india" in text or "bangalore" in text or "hyderabad" in text:
         score += 5
+
+    # Experience parsing (Candidate target: 0-2 years ONLY)
+    exp_matches = re.findall(r"(\d+)\+?\s*(?:-\s*(\d+)\+?)?\s*(?:years?|yrs?)(?:\s+of)?\s+experience", text)
+    experience_match = True
+    
+    for m in exp_matches:
+        min_yr = int(m[0]) if m[0] else 0
+        if min_yr >= 3:
+            # Requires 3+ years experience — outside 0-2 yrs range
+            experience_match = False
+            score -= 35
+        elif min_yr <= 2:
+            # Directly inside 0-2 yrs range
+            score += 10
+
+    # If title indicates Senior/Staff/Lead/Principal, disable experience_match
+    if any(t in title_lower for t in ["senior", "staff", "principal", "lead", "architect", "director", "vp ", "manager"]):
+        experience_match = False
 
     # Clamp
     score = max(0, min(100, score))
@@ -95,27 +115,27 @@ def mock_score_job(
             missing_skills.append(skill)
 
     # Determine action
-    if score >= 70:
+    if score >= 65 and experience_match:
         action = "APPLY"
-        reasoning = f"Strong match ({score}/100). Found: {', '.join(matching_skills[:5])}."
-    elif score >= 55:
+        reasoning = f"Strong 0-2 years match ({score}/100). Found: {', '.join(matching_skills[:5])}."
+    elif score >= 50 and experience_match:
         action = "REVIEW"
-        reasoning = f"Moderate match ({score}/100). Some overlap with Java/backend profile."
+        reasoning = f"Moderate 0-2 years match ({score}/100). Some overlap with Java/backend skills."
     else:
         action = "SKIP"
-        reasoning = f"Low relevance ({score}/100). Limited match with Java/Spring/AWS skills."
+        reasoning = f"Low relevance or experience mismatch (Target: 0-2 yrs). Score: {score}/100."
 
-    logger.info(f"[MOCK] '{job_title}' @ {company}: {score}/100 [{action}]")
+    logger.info(f"[MOCK] '{job_title}' @ {company}: {score}/100 [{action}] (0-2yr match={experience_match})")
 
     return {
         "score": score,
         "reasoning": reasoning,
         "matching_skills": matching_skills[:8],
         "missing_skills": missing_skills[:5],
-        "role_match": score >= 55,
-        "experience_match": score >= 60,
+        "role_match": score >= 50 and experience_match,
+        "experience_match": experience_match,
         "recommended_action": action,
-        "mock": True,  # Flag so we know it's not a real Claude score
+        "mock": True,
     }
 
 

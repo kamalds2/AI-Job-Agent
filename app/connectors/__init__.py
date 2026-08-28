@@ -13,4 +13,5 @@ from app.connectors import (  # noqa: F401
     hirist_connector,      # Arbeitnow (replaced Hirist — no auth needed)
     tier5_connector,
     adzuna_connector,      # Free India API — needs ADZUNA_APP_ID + ADZUNA_APP_KEY in .env
+    linkedin_posts_connector,  # Daily LinkedIn hiring posts scraper with recruiter emails
 )

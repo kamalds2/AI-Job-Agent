@@ -1,12 +1,11 @@
 """
-Scoring Service — Claude → OpenAI → Mock cascade.
+Scoring Service — Gemini / Claude / OpenAI / Mock cascade.
 
-Priority:
-  1. Claude (claude-sonnet-4-5) — best quality
-  2. OpenAI (gpt-4o-mini) — fallback if Claude fails or low credit
-  3. Mock heuristic — final fallback, no API needed
+Priority configurable via LLM_PROVIDER in settings / .env:
+  Default: Gemini → Claude → OpenAI → Mock
+  (or Claude → Gemini → OpenAI → Mock if LLM_PROVIDER=claude)
 
-All three return the same dict schema:
+All providers return the same dict schema:
   {score, reasoning, matching_skills, missing_skills,
    role_match, experience_match, recommended_action}
 """
@@ -18,12 +17,16 @@ from typing import Optional
 import httpx
 
 from app.config.settings import (
+    GEMINI_API_KEY,
+    GEMINI_MODEL,
     ANTHROPIC_API_KEY,
     OPENAI_API_KEY,
     CLAUDE_MODEL,
+    LLM_PROVIDER,
     MOCK_SCORING,
 )
 from app.prompts.scoring_prompt import JOB_SCORING_SYSTEM_PROMPT, build_scoring_user_prompt
+from app.utils.gemini_client import GeminiClient, get_gemini_client
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +34,14 @@ logger = logging.getLogger(__name__)
 # ── LLM client factories ────────────────────────────────────────────────────
 
 def _make_anthropic_client():
-    """Anthropic client with SSL fix for Windows."""
+    """Anthropic client."""
+    if not ANTHROPIC_API_KEY:
+        return None
     try:
         import anthropic
-        if sys.platform == "win32":
-            return anthropic.Anthropic(
-                api_key=ANTHROPIC_API_KEY,
-                http_client=httpx.Client(verify=False),
-            )
         return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    except ImportError:
+    except Exception as e:
+        logger.warning(f"Could not initialize Anthropic client: {e}")
         return None
 
 
@@ -90,6 +91,43 @@ def _default_score(title: str, company: str, error: str, source: str = "error") 
 
 
 # ── Per-LLM scoring functions ────────────────────────────────────────────────
+
+def _score_with_gemini(
+    client: GeminiClient,
+    job_title: str,
+    company: str,
+    job_description: str,
+    resume_text: str,
+) -> Optional[dict]:
+    """Score using Google Gemini API."""
+    try:
+        user_prompt = build_scoring_user_prompt(
+            job_title=job_title,
+            company=company,
+            job_description=job_description,
+            resume_text=resume_text,
+        )
+        response_text = client.generate_content(
+            prompt=user_prompt,
+            system_instruction=JOB_SCORING_SYSTEM_PROMPT,
+            json_mode=True,
+            temperature=0.1,
+            max_output_tokens=1024,
+        )
+        if not response_text:
+            return None
+
+        result = _parse_llm_response(response_text, f"gemini ({client.model})")
+        if result:
+            logger.info(
+                f"[Gemini-{client.model}] '{job_title}' @ {company}: "
+                f"{result['score']}/100 [{result.get('recommended_action')}]"
+            )
+        return result
+    except Exception as e:
+        logger.warning(f"[Gemini] Failed for '{job_title}': {e}")
+        return None
+
 
 def _score_with_claude(
     client,
@@ -163,13 +201,14 @@ def _score_with_openai(
 
 class ScoringService:
     """
-    AI scoring cascade: Claude → OpenAI → Mock.
+    AI scoring cascade: Gemini / Claude / OpenAI → Mock heuristic.
 
     Automatically falls back to the next provider if the current one
     fails due to connection errors, credit exhaustion, or rate limits.
     """
 
     def __init__(self):
+        self._gemini = get_gemini_client()
         self._claude = None
         self._openai = None
 
@@ -179,11 +218,23 @@ class ScoringService:
         if OPENAI_API_KEY:
             self._openai = _make_openai_client()
 
-        if not self._claude and not self._openai:
+        if not self._gemini and not self._claude and not self._openai:
             logger.warning(
                 "No LLM API keys configured — will use mock scoring. "
-                "Set ANTHROPIC_API_KEY or OPENAI_API_KEY in .env"
+                "Set GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY in .env"
             )
+
+    def _get_providers_order(self) -> list[str]:
+        """Determine order of providers based on settings & availability."""
+        pref = LLM_PROVIDER.lower()
+        if pref == "gemini":
+            return ["gemini"]
+        elif pref == "claude":
+            return ["claude"]
+        elif pref == "openai":
+            return ["openai"]
+        else:
+            return ["gemini", "claude", "openai"]
 
     def score_job(
         self,
@@ -193,32 +244,39 @@ class ScoringService:
         resume_text: str,
     ) -> dict:
         """
-        Score a job. Cascades: Claude → OpenAI → Mock.
+        Score a job. Cascades across available LLMs → Mock.
         Always returns a valid score dict.
         """
-        # 1. Try Claude
-        if self._claude and not MOCK_SCORING:
-            result = _score_with_claude(
-                self._claude, job_title, company,
-                job_description[:3000], resume_text,
-            )
-            if result:
-                return result
+        if not MOCK_SCORING:
+            providers = self._get_providers_order()
+            for provider in providers:
+                if provider == "gemini" and self._gemini:
+                    result = _score_with_gemini(
+                        self._gemini, job_title, company,
+                        job_description[:3500], resume_text,
+                    )
+                    if result:
+                        return result
+                elif provider == "claude" and self._claude:
+                    result = _score_with_claude(
+                        self._claude, job_title, company,
+                        job_description[:3000], resume_text,
+                    )
+                    if result:
+                        return result
+                elif provider == "openai" and self._openai:
+                    result = _score_with_openai(
+                        self._openai, job_title, company,
+                        job_description[:3000], resume_text,
+                    )
+                    if result:
+                        return result
 
-        # 2. Try OpenAI
-        if self._openai and not MOCK_SCORING:
-            result = _score_with_openai(
-                self._openai, job_title, company,
-                job_description[:3000], resume_text,
-            )
-            if result:
-                return result
-
-        # 3. Mock heuristic fallback
+        # Mock heuristic fallback
         if MOCK_SCORING:
             logger.debug(f"[Mock] Scoring '{job_title}' (MOCK_SCORING=true)")
         else:
-            logger.warning(f"Both LLMs failed for '{job_title}' — using mock scoring")
+            logger.warning(f"All configured LLMs failed for '{job_title}' — using mock scoring")
 
         from app.services.mock_scoring_service import mock_score_job
         return mock_score_job(job_title, company, job_description, resume_text)

@@ -77,7 +77,15 @@ class ReportService:
         if "Sheet" in wb.sheetnames:
             del wb["Sheet"]
 
-        wb.save(str(filepath))
+        try:
+            wb.save(str(filepath))
+        except PermissionError:
+            from datetime import datetime as _dt
+            suffix = _dt.now().strftime("%H%M%S")
+            filename = f"JobReport_{today}_{suffix}.xlsx"
+            filepath = self.reports_dir / filename
+            wb.save(str(filepath))
+
         logger.info(f"📊 Excel report saved: {filepath}")
         return str(filepath)
 
