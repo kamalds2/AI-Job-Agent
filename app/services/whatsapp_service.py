@@ -13,6 +13,7 @@ from app.config.settings import (
     WHATSAPP_TOKEN,
     WHATSAPP_PHONE_ID,
     WHATSAPP_TO_NUMBER,
+    CALLMEBOT_APIKEY,
     DRY_RUN,
 )
 from app.prompts.email_prompt import WHATSAPP_NOTIFICATION_TEMPLATE
@@ -20,58 +21,78 @@ from app.prompts.email_prompt import WHATSAPP_NOTIFICATION_TEMPLATE
 logger = logging.getLogger(__name__)
 
 WHATSAPP_API_URL = "https://graph.facebook.com/v19.0/{phone_id}/messages"
+CALLMEBOT_URL = "https://api.callmebot.com/whatsapp.php"
 
 
 class WhatsAppService:
     """
-    Sends WhatsApp messages using Meta's Cloud API.
+    Sends WhatsApp notifications using Meta Cloud API or CallMeBot API.
     """
 
     def __init__(self):
         self.token = WHATSAPP_TOKEN
         self.phone_id = WHATSAPP_PHONE_ID
         self.to_number = WHATSAPP_TO_NUMBER
+        self.callmebot_apikey = CALLMEBOT_APIKEY
 
     def _is_configured(self) -> bool:
-        return all([self.token, self.phone_id, self.to_number])
+        return bool(self.callmebot_apikey or (self.token and self.phone_id and self.to_number))
 
     def send_message(self, message: str) -> bool:
-        """Send a plain text WhatsApp message."""
+        """Send a WhatsApp notification."""
         if DRY_RUN:
             logger.info(f"[DRY RUN] WhatsApp message:\n{message}")
             return True
 
         if not self._is_configured():
-            logger.warning("WhatsApp not configured — skipping notification")
+            logger.warning("WhatsApp not configured — add CALLMEBOT_APIKEY or WHATSAPP_TOKEN in .env")
             return False
 
-        try:
-            import sys
-            url = WHATSAPP_API_URL.format(phone_id=self.phone_id)
-            ssl_verify = False if sys.platform == "win32" else True
-            response = httpx.post(
-                url,
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "messaging_product": "whatsapp",
-                    "recipient_type": "individual",
-                    "to": self.to_number,
-                    "type": "text",
-                    "text": {"preview_url": False, "body": message},
-                },
-                timeout=10,
-                verify=ssl_verify,
-            )
-            response.raise_for_status()
-            logger.info("WhatsApp message sent")
-            return True
+        import sys
+        ssl_verify = False if sys.platform == "win32" else True
 
-        except Exception as e:
-            logger.error(f"WhatsApp send failed: {e}")
-            return False
+        # Option A: Try CallMeBot API if key is present
+        if self.callmebot_apikey and self.to_number:
+            try:
+                from urllib.parse import quote_plus
+                encoded_msg = quote_plus(message)
+                url = f"{CALLMEBOT_URL}?phone={self.to_number}&text={encoded_msg}&apikey={self.callmebot_apikey}"
+                response = httpx.get(url, timeout=10, verify=ssl_verify)
+                if response.status_code == 200:
+                    logger.info("📱 WhatsApp message sent via CallMeBot")
+                    return True
+            except Exception as cbe:
+                logger.warning(f"[CallMeBot] WhatsApp send failed: {cbe}")
+
+        # Option B: Meta WhatsApp Cloud API
+        if self.token and self.phone_id and self.to_number:
+            try:
+                url = WHATSAPP_API_URL.format(phone_id=self.phone_id)
+                response = httpx.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {self.token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "messaging_product": "whatsapp",
+                        "recipient_type": "individual",
+                        "to": self.to_number,
+                        "type": "text",
+                        "text": {"preview_url": False, "body": message},
+                    },
+                    timeout=10,
+                    verify=ssl_verify,
+                )
+                if response.status_code == 200:
+                    logger.info("📱 WhatsApp message sent via Meta Cloud API")
+                    return True
+                else:
+                    logger.warning(f"Meta WhatsApp API ({response.status_code}): {response.text}")
+            except Exception as e:
+                logger.error(f"WhatsApp Meta API failed: {e}")
+
+        return False
 
     def send_job_match_alert(
         self,

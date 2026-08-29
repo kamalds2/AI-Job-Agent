@@ -30,6 +30,7 @@ EMAIL_ADDRESS: Optional[str] = os.getenv("EMAIL_ADDRESS")
 WHATSAPP_TOKEN: Optional[str] = os.getenv("WHATSAPP_TOKEN")
 WHATSAPP_PHONE_ID: Optional[str] = os.getenv("WHATSAPP_PHONE_ID")
 WHATSAPP_TO_NUMBER: Optional[str] = os.getenv("WHATSAPP_TO_NUMBER")
+CALLMEBOT_APIKEY: Optional[str] = os.getenv("CALLMEBOT_APIKEY")
 
 # ── Agent Config ──────────────────────────────────────────
 MATCH_SCORE_THRESHOLD: int = int(os.getenv("MATCH_SCORE_THRESHOLD", "65"))
