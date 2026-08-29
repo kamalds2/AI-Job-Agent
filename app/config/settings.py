@@ -32,6 +32,10 @@ WHATSAPP_PHONE_ID: Optional[str] = os.getenv("WHATSAPP_PHONE_ID")
 WHATSAPP_TO_NUMBER: Optional[str] = os.getenv("WHATSAPP_TO_NUMBER")
 CALLMEBOT_APIKEY: Optional[str] = os.getenv("CALLMEBOT_APIKEY")
 
+# ── Job Board Credentials ─────────────────────────────────
+JOB_BOARD_EMAIL: str = os.getenv("JOB_BOARD_EMAIL", "kamalkumar.doddi@gmail.com")
+JOB_BOARD_PASSWORD: str = os.getenv("JOB_BOARD_PASSWORD", "Dk@052001")
+
 # ── Agent Config ──────────────────────────────────────────
 MATCH_SCORE_THRESHOLD: int = int(os.getenv("MATCH_SCORE_THRESHOLD", "65"))
 MAX_APPLICATIONS_PER_RUN: int = int(os.getenv("MAX_APPLICATIONS_PER_RUN", "10"))

@@ -96,6 +96,9 @@ class BrowserApplyService:
                 except Exception as ne:
                     logger.warning(f"[Browser Apply] Navigation warning for {job_url}: {ne}")
 
+                # Check for login prompts and perform auto-login if needed
+                await self._handle_portal_login(page)
+
                 # If on job board landing page with an "Apply" button, click it to open the form
                 await self._navigate_to_form(page)
 
@@ -103,12 +106,12 @@ class BrowserApplyService:
                 filled = await self._fill_form(page, resume_pdf_path, cover_letter)
 
                 if not filled:
-                    await browser.close()
+                    await context.close()
                     return {"success": False, "method": "browser_playwright", "message": "Could not detect or fill application form"}
 
                 # Submit form
                 submitted = await self._submit_form(page)
-                await browser.close()
+                await context.close()
 
                 if submitted:
                     logger.info(f"✅ [Browser Apply] Successfully submitted application for '{job_title}' @ {company_name}")
@@ -119,6 +122,61 @@ class BrowserApplyService:
         except Exception as e:
             logger.error(f"❌ [Browser Apply] Error applying for '{job_title}' @ {company_name}: {e}")
             return {"success": False, "method": "browser_playwright", "message": str(e)}
+
+    async def _handle_portal_login(self, page: Page):
+        """Auto-login to job portals when a login modal or page is detected."""
+        from app.config.settings import JOB_BOARD_EMAIL, JOB_BOARD_PASSWORD
+
+        try:
+            pwd_locators = ["input[type='password']", "input[name*='password' i]", "input[id*='password' i]"]
+            is_login_page = False
+            for sel in pwd_locators:
+                if await page.locator(sel).count() > 0 and await page.locator(sel).first.is_visible():
+                    is_login_page = True
+                    break
+
+            if is_login_page:
+                logger.info(f"🔑 [Browser Login] Login prompt detected — logging in as {JOB_BOARD_EMAIL}...")
+
+                # Email / Username
+                email_locators = ["input[type='email']", "input[name*='email' i]", "input[name*='user' i]", "input[placeholder*='email' i]"]
+                for sel in email_locators:
+                    try:
+                        loc = page.locator(sel).first
+                        if await loc.is_visible():
+                            await loc.fill(JOB_BOARD_EMAIL)
+                            break
+                    except Exception:
+                        pass
+
+                # Password
+                for sel in pwd_locators:
+                    try:
+                        loc = page.locator(sel).first
+                        if await loc.is_visible():
+                            await loc.fill(JOB_BOARD_PASSWORD)
+                            break
+                    except Exception:
+                        pass
+
+                # Submit login button
+                login_btn_selectors = [
+                    "button[type='submit']", "input[type='submit']", "button:has-text('Log in' i)",
+                    "button:has-text('Sign in' i)", "a:has-text('Log in' i)", "button:has-text('Login' i)",
+                ]
+                for sel in login_btn_selectors:
+                    try:
+                        btn = page.locator(sel).first
+                        if await btn.is_visible():
+                            await btn.click()
+                            await page.wait_for_timeout(3000)
+                            logger.info("✅ [Browser Login] Submitted login credentials and saved session")
+                            break
+                    except Exception:
+                        pass
+
+        except Exception as e:
+            logger.debug(f"[Browser Login] Portal login check: {e}")
 
     async def _navigate_to_form(self, page: Page):
         """Click 'Apply' or 'Apply for this job' button if the form is in a sub-section or modal."""
