@@ -141,18 +141,25 @@ class ApplyService:
             "follow_redirects": True,
         }
 
-    async def apply(
+    async def apply_to_job(
         self,
         job_url: str,
         company_name: str,
         job_title: str,
-        cover_letter: str,
+        cover_letter: str = "",
         resume_pdf_path: Optional[str] = None,
+        score: int = 85,
+        hr_email: Optional[str] = None,
     ) -> dict:
         """
-        Try each apply method in order until one succeeds.
+        Apply to job based on Source-Aware Application Strategy & Match Score Policy.
         Returns: {"success": bool, "method": str, "message": str}
         """
+        from app.services.application_policy import determine_application_strategy, ApplicationStatus, ApplicationMode
+
+        status, mode, reason = determine_application_strategy(score, job_url, company_name, hr_email)
+        logger.info(f"📋 [Apply Engine] Strategy for '{job_title}' @ {company_name} [{score}/100]: Mode={mode.value}, Status={status.value} ({reason})")
+
         if DRY_RUN:
             logger.info(f"[DRY RUN] Would apply to: {job_title} @ {company_name}")
             return {
@@ -161,69 +168,61 @@ class ApplyService:
                 "message": f"DRY RUN: Would apply to {job_title} @ {company_name}",
             }
 
-        # 0. Primary: Try Playwright Headless Browser Auto-Apply (Bypasses Cloudflare & form JS)
-        try:
-            from app.services.browser_apply_service import BrowserApplyService
-            browser_service = BrowserApplyService(headless=True)
-            browser_result = await browser_service.apply(
-                job_url=job_url,
-                job_title=job_title,
-                company_name=company_name,
-                resume_pdf_path=resume_pdf_path or "",
-                cover_letter=cover_letter,
-            )
-            if browser_result.get("success"):
-                return browser_result
-        except Exception as be:
-            logger.debug(f"[Apply] Playwright browser apply skipped: {be}")
+        # If manual review mode (e.g. anti-bot portal Hirist/Shine or score 65-74), return prepared link
+        if status in (ApplicationStatus.REVIEW_REQUIRED, ApplicationStatus.SAVE_LINK, ApplicationStatus.SKIPPED) and mode == ApplicationMode.MANUAL_LINK:
+            return {
+                "success": False,
+                "method": "manual_review_link",
+                "message": f"Prepared for 1-click review at: {job_url}",
+                "status": status.value,
+            }
 
-        # 1. Try Greenhouse REST API
-        gh_info = extract_greenhouse_info(job_url)
-        if gh_info:
-            result = await self._apply_greenhouse(
-                company=gh_info["company"],
-                job_id=gh_info["job_id"],
-                job_title=job_title,
-                cover_letter=cover_letter,
-                resume_pdf_path=resume_pdf_path,
-            )
-            if result["success"]:
-                return result
+        # Mode 1: Direct ATS API Submit (Greenhouse, Lever, Ashby)
+        if mode == ApplicationMode.DIRECT_API:
+            gh_info = extract_greenhouse_info(job_url)
+            if gh_info:
+                result = await self._apply_greenhouse(gh_info["company"], gh_info["job_id"], job_title, cover_letter, resume_pdf_path)
+                if result["success"]:
+                    return result
 
-        # 2. Try Lever
-        lever_id = extract_lever_posting_id(job_url)
-        if lever_id:
-            result = await self._apply_lever(
-                posting_id=lever_id,
-                job_title=job_title,
-                cover_letter=cover_letter,
-                resume_pdf_path=resume_pdf_path,
-            )
-            if result["success"]:
-                return result
+            lever_id = extract_lever_posting_id(job_url)
+            if lever_id:
+                result = await self._apply_lever(lever_id, job_title, cover_letter, resume_pdf_path)
+                if result["success"]:
+                    return result
 
-        # 3. Try Ashby
-        ashby_info = extract_ashby_info(job_url)
-        if ashby_info:
-            result = await self._apply_ashby(
-                company=ashby_info["company"],
-                job_id=ashby_info["job_id"],
-                job_title=job_title,
-                cover_letter=cover_letter,
-                resume_pdf_path=resume_pdf_path,
-            )
-            if result["success"]:
-                return result
+            ashby_info = extract_ashby_info(job_url)
+            if ashby_info:
+                result = await self._apply_ashby(ashby_info["company"], ashby_info["job_id"], job_title, cover_letter, resume_pdf_path)
+                if result["success"]:
+                    return result
 
-        # 4. Record job URL for manual application
+        # Mode 2: Persistent Playwright Browser Auto-Apply (Reuses saved browser session for Wellfound/YC/LinkedIn/Jobicy)
+        if mode in (ApplicationMode.PERSISTENT_BROWSER, ApplicationMode.DIRECT_API):
+            try:
+                from app.services.browser_apply_service import BrowserApplyService
+                browser_service = BrowserApplyService(headless=True)
+                browser_result = await browser_service.apply(
+                    job_url=job_url,
+                    job_title=job_title,
+                    company_name=company_name,
+                    resume_pdf_path=resume_pdf_path or "",
+                    cover_letter=cover_letter,
+                )
+                if browser_result.get("success"):
+                    return browser_result
+            except Exception as be:
+                logger.debug(f"[Apply] Playwright browser apply skipped: {be}")
+
+        # Fallback: Record job URL for manual application link review
         logger.warning(
-            f"[Apply] No direct API available for {job_url[:60]} — "
-            f"manual application needed at: {job_url}"
+            f"[Apply] Direct automation unavailable for {job_url[:60]} — "
+            f"1-click review link prepared at: {job_url}"
         )
         return {
             "success": False,
-            "method": "none",
-            "message": f"No direct API found — apply manually at: {job_url}",
+            "method": "manual_review_prepared",
+            "message": f"Application link prepared: {job_url}",
         }
 
     async def _apply_greenhouse(

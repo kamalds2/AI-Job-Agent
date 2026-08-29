@@ -67,12 +67,19 @@ class BrowserApplyService:
             logger.warning(f"[Browser Apply] Resume PDF not found at: {resume_pdf_path}")
             return {"success": False, "method": "browser_playwright", "message": "Resume PDF missing"}
 
-        logger.info(f"🌐 [Browser Apply] Launching headless browser for '{job_title}' @ {company_name}...")
+        logger.info(f"🌐 [Browser Apply] Launching persistent browser context for '{job_title}' @ {company_name}...")
+
+        browser_dir = Path("data/browser_profile")
+        browser_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(
+                context = await p.chromium.launch_persistent_context(
+                    user_data_dir=str(browser_dir),
                     headless=self.headless,
+                    user_agent=self.user_agent,
+                    viewport={"width": 1280, "height": 800},
+                    locale="en-US",
                     args=[
                         "--no-sandbox",
                         "--disable-setuid-sandbox",
@@ -80,12 +87,7 @@ class BrowserApplyService:
                         "--disable-blink-features=AutomationControlled",
                     ],
                 )
-                context = await browser.new_context(
-                    user_agent=self.user_agent,
-                    viewport={"width": 1280, "height": 800},
-                    locale="en-US",
-                )
-                page = await context.new_page()
+                page = context.pages[0] if context.pages else await context.new_page()
 
                 # Navigate to application page
                 try:
