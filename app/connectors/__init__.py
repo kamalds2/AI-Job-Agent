@@ -14,4 +14,6 @@ from app.connectors import (  # noqa: F401
     tier5_connector,
     adzuna_connector,      # Free India API — needs ADZUNA_APP_ID + ADZUNA_APP_KEY in .env
     linkedin_posts_connector,  # Daily LinkedIn hiring posts scraper with recruiter emails
+    jobicy_connector,      # Public Jobicy Remote Jobs API
+    agent_reach_connector,  # Agent Reach LinkedIn Connector
 )

@@ -56,6 +56,9 @@ class SearchManager:
             hirist_connector,
             tier5_connector,
             adzuna_connector,
+            linkedin_posts_connector,
+            jobicy_connector,
+            agent_reach_connector,
         )
 
         logger.info(f"🔍 Starting search across {len(CONNECTORS)} connectors...")

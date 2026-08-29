@@ -1,8 +1,8 @@
 """
-Remotive Connector — Fetches remote software engineering and AI jobs from Remotive API.
+Jobicy Connector — Fetches remote tech and backend engineering jobs from Jobicy API.
 
-API Docs: https://remotive.com/api-documentation
-Endpoint: https://remotive.com/api/remote-jobs
+API Docs: https://jobicy.com/remote-jobs-api
+Endpoint: https://jobicy.com/api/v2/remote-jobs
 """
 import logging
 from datetime import date
@@ -14,47 +14,47 @@ from app.schemas.job_data import JobData
 
 logger = logging.getLogger(__name__)
 
-REMOTIVE_API_URL = "https://remotive.com/api/remote-jobs"
+JOBICY_API_URL = "https://jobicy.com/api/v2/remote-jobs"
 
 
 @register_connector
-class RemotiveConnector(BaseConnector):
-    """Connector for Remotive API."""
+class JobicyConnector(BaseConnector):
+    """Connector for Jobicy Remote Jobs API."""
 
-    connector_name = "remotive"
+    connector_name = "jobicy"
 
     async def fetch_jobs(self) -> list[dict]:
-        """Fetch remote software jobs from Remotive API."""
+        """Fetch remote jobs matching query from Jobicy API."""
         try:
             params = {
-                "category": "software-dev",
-                "limit": 50,
+                "count": 50,
+                "industry": "engineering",
             }
             async with httpx.AsyncClient(**self.CLIENT_KWARGS) as client:
-                response = await client.get(REMOTIVE_API_URL, params=params)
+                response = await client.get(JOBICY_API_URL, params=params)
 
             if response.status_code != 200:
-                logger.warning(f"[Remotive] API returned {response.status_code}")
+                logger.warning(f"[Jobicy] API returned {response.status_code}")
                 return []
 
             data = response.json()
             raw_jobs = data.get("jobs", [])
-            logger.info(f"[Remotive] Retrieved {len(raw_jobs)} remote jobs")
+            logger.info(f"[Jobicy] Retrieved {len(raw_jobs)} remote jobs")
             return raw_jobs
 
         except Exception as e:
-            logger.error(f"[Remotive] Fetch failed: {e}")
+            logger.error(f"[Jobicy] Fetch failed: {e}")
             return []
 
     async def parse_jobs(self, raw_jobs: list[dict]) -> list[JobData]:
         """Convert raw items to JobData."""
         jobs = []
         for item in raw_jobs:
-            title = item.get("title", "").strip()
-            company = item.get("company_name", "").strip()
+            title = item.get("jobTitle", "").strip()
+            company = item.get("companyName", "").strip()
             job_url = item.get("url", "").strip()
-            description = item.get("description", title)
-            location = item.get("candidate_required_location", "Remote")
+            description = item.get("jobDescription") or item.get("jobExcerpt") or title
+            location = item.get("jobGeo", "Remote")
 
             if title and job_url:
                 jobs.append(
@@ -64,7 +64,7 @@ class RemotiveConnector(BaseConnector):
                         location=location,
                         description=description,
                         job_url=job_url,
-                        source="Remotive",
+                        source="Jobicy",
                         remote=True,
                         posted_date=date.today(),
                     )
