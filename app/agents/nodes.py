@@ -434,22 +434,24 @@ def make_email_node(db: Session):
                         with concurrent.futures.ThreadPoolExecutor() as pool:
                             apply_result = pool.submit(
                                 asyncio.run,
-                                apply_service.apply(
+                                apply_service.apply_to_job(
                                     job_url=job.job_url,
                                     company_name=company_name,
                                     job_title=job.title,
                                     cover_letter=cover_letter,
                                     resume_pdf_path=resume_pdf,
+                                    score=score,
                                 ),
                             ).result()
                     except RuntimeError:
                         apply_result = asyncio.run(
-                            apply_service.apply(
+                            apply_service.apply_to_job(
                                 job_url=job.job_url,
                                 company_name=company_name,
                                 job_title=job.title,
                                 cover_letter=cover_letter,
                                 resume_pdf_path=resume_pdf,
+                                score=score,
                             )
                         )
                     apply_method = apply_result.get("method", "none")

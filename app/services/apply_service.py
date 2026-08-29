@@ -160,6 +160,9 @@ class ApplyService:
         status, mode, reason = determine_application_strategy(score, job_url, company_name, hr_email)
         logger.info(f"📋 [Apply Engine] Strategy for '{job_title}' @ {company_name} [{score}/100]: Mode={mode.value}, Status={status.value} ({reason})")
 
+    # Method alias for backward compatibility with orchestrator nodes
+    apply = apply_to_job
+
         if DRY_RUN:
             logger.info(f"[DRY RUN] Would apply to: {job_title} @ {company_name}")
             return {
