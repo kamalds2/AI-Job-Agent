@@ -245,8 +245,26 @@ class ScoringService:
     ) -> dict:
         """
         Score a job. Cascades across available LLMs → Mock.
-        Always returns a valid score dict.
+        Strictly enforces 0-2 years experience guard before LLM scoring.
         """
+        from app.utils.experience_filter import validate_0_to_2_years_experience
+
+        # 0. Strict 0-2 Years Experience Guard Check
+        is_exp_valid, exp_reason = validate_0_to_2_years_experience(job_title, job_description)
+        if not is_exp_valid:
+            logger.info(f"🚫 [Exp Guard] Skipped '{job_title}' @ {company}: {exp_reason}")
+            return {
+                "score": 0,
+                "reasoning": f"FILTERED (0-2 Yrs Target Guard): {exp_reason}",
+                "matching_skills": [],
+                "missing_skills": [],
+                "role_match": False,
+                "experience_match": False,
+                "recommended_action": "SKIP",
+                "_source": "experience_filter",
+            }
+
+        result = None
         if not MOCK_SCORING:
             providers = self._get_providers_order()
             for provider in providers:
@@ -256,30 +274,33 @@ class ScoringService:
                         job_description[:3500], resume_text,
                     )
                     if result:
-                        return result
+                        break
                 elif provider == "claude" and self._claude:
                     result = _score_with_claude(
                         self._claude, job_title, company,
                         job_description[:3000], resume_text,
                     )
                     if result:
-                        return result
+                        break
                 elif provider == "openai" and self._openai:
                     result = _score_with_openai(
                         self._openai, job_title, company,
                         job_description[:3000], resume_text,
                     )
                     if result:
-                        return result
+                        break
 
-        # Mock heuristic fallback
-        if MOCK_SCORING:
-            logger.debug(f"[Mock] Scoring '{job_title}' (MOCK_SCORING=true)")
-        else:
-            logger.warning(f"All configured LLMs failed for '{job_title}' — using mock scoring")
+        # Fallback to mock scoring if no LLM returned result
+        if not result:
+            from app.services.mock_scoring_service import mock_score_job
+            result = mock_score_job(job_title, company, job_description, resume_text)
 
-        from app.services.mock_scoring_service import mock_score_job
-        return mock_score_job(job_title, company, job_description, resume_text)
+        # Final post-check: if LLM mistakenly returned high score for senior/3+ yrs role, override
+        if not result.get("experience_match", True):
+            result["score"] = min(result.get("score", 0), 40)
+            result["recommended_action"] = "SKIP"
+
+        return result
 
     def batch_score(
         self,
@@ -306,7 +327,12 @@ class ScoringService:
                 **result,
             }
             scored_jobs.append(entry)
-            if result["score"] >= threshold:
+            # Only qualify if score >= threshold AND experience_match is True AND recommended_action != 'SKIP'
+            if (
+                result["score"] >= threshold
+                and result.get("experience_match") is True
+                and result.get("recommended_action") in ("APPLY", "REVIEW")
+            ):
                 qualified_ids.append(job["id"])
 
         source_counts: dict[str, int] = {}

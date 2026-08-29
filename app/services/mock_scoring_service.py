@@ -57,6 +57,20 @@ def mock_score_job(
     Heuristic scoring without Claude API.
     Returns same format as ScoringService.score_job().
     """
+    from app.utils.experience_filter import validate_0_to_2_years_experience
+    is_exp_valid, exp_reason = validate_0_to_2_years_experience(job_title, job_description)
+    if not is_exp_valid:
+        return {
+            "score": 0,
+            "reasoning": f"FILTERED: {exp_reason}",
+            "matching_skills": [],
+            "missing_skills": [],
+            "role_match": False,
+            "experience_match": False,
+            "recommended_action": "SKIP",
+            "mock": True,
+        }
+
     text = (job_title + " " + job_description).lower()
     score = 30  # Base score
 
