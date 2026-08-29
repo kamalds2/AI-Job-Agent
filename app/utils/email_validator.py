@@ -134,64 +134,15 @@ def generate_hr_email_candidates(
     jd_text: str = "",
 ) -> list[str]:
     """
-    Generate candidate HR email addresses for a company.
-    
-    Priority:
-      1. Explicit emails found directly in the Job Description or Post Text (100% accurate)
-      2. Validated hr@ / careers@ variations across .com, .in, .co, .ai with active DNS
+    Extract ONLY verified, explicit recruiter email addresses found directly in
+    the Job Description or Social Post Text (e.g. LinkedIn, Twitter, HN hiring posts).
+
+    CRITICAL RULE: Never generate fake or guessed hr@ / careers@ addresses to prevent
+    email bounces and protect sender reputation.
     """
-    candidates: list[str] = []
-    seen = set()
+    if not jd_text:
+        return []
 
-    # 1. First priority: Check JD text for explicit emails
-    if jd_text:
-        explicit_emails = extract_emails_from_text(jd_text)
-        for e in explicit_emails:
-            if e not in seen:
-                seen.add(e)
-                candidates.append(e)
-
-    # 2. Extract base domain from job_url if it's a direct company site
-    primary_domain = None
-    if job_url:
-        try:
-            hostname = (urlparse(job_url).hostname or "").lower()
-            parts = hostname.split(".")
-            if len(parts) >= 2:
-                base = ".".join(parts[-2:])
-                if base not in ATS_DOMAINS and hostname not in ATS_DOMAINS:
-                    primary_domain = base
-        except Exception:
-            pass
-
-    slug = extract_base_company_slug(company_name, job_url)
-    if slug == "company" and not primary_domain:
-        return candidates
-
-    # Build potential domains to test
-    potential_domains = []
-    if primary_domain:
-        potential_domains.append(primary_domain)
-
-    for tld in TLD_VARIATIONS:
-        d = f"{slug}{tld}"
-        if d not in potential_domains:
-            potential_domains.append(d)
-
-    # Generate hr@ and careers@ patterns
-    for dom in potential_domains:
-        # Quick DNS check to make sure domain is alive
-        if not domain_has_valid_dns(dom):
-            continue
-
-        for prefix in ["hr", "careers", "talent", "recruiting", "jobs"]:
-            email = f"{prefix}@{dom}"
-            if email not in seen:
-                seen.add(email)
-                candidates.append(email)
-
-        # Stop after finding a validated active domain with candidate emails
-        if len(candidates) >= 5:
-            break
-
-    return candidates
+    # Extract all real email addresses from the text
+    explicit_emails = extract_emails_from_text(jd_text)
+    return explicit_emails
