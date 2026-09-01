@@ -1,7 +1,7 @@
 """
 Generate Comprehensive Architecture, Workflow, and Directory Structure PDF for AI Job Agent.
 Incorporates the complete architectural blueprint, pipeline diagrams, YAML source configuration,
-ExperienceAnalyzer, and weighted scoring formulas from the master system design.
+ExperienceAnalyzer, and two-stream application model (Recruiter Email & Direct Apply Link).
 """
 import os
 import sys
@@ -139,13 +139,6 @@ def build_pdf(filename: str):
         parent=body_style,
         fontName="Helvetica-Bold",
     )
-    bullet_style = ParagraphStyle(
-        "DocBullet",
-        parent=body_style,
-        leftIndent=12,
-        firstLineIndent=-8,
-        spaceAfter=2.5,
-    )
     code_style = ParagraphStyle(
         "DocCode",
         parent=styles["Normal"],
@@ -177,7 +170,7 @@ def build_pdf(filename: str):
     # HEADER BANNER & TITLE
     # =========================================================================
     story.append(Paragraph("AI Job Agent: Master Architecture & Workflow Blueprint", title_style))
-    story.append(Paragraph("End-to-End Autonomous Job Discovery, Multi-Tier Scoring, Dynamic ATS Tailoring & Multi-Mode Applications", subtitle_style))
+    story.append(Paragraph("End-to-End Autonomous Job Discovery, Multi-Tier Scoring, Dynamic ATS Tailoring & Dual-Stream Applications", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=PRIMARY, spaceBefore=2, spaceAfter=10))
 
     # Meta Overview Box
@@ -192,7 +185,7 @@ def build_pdf(filename: str):
         ],
         [
             Paragraph("<b>Scheduler Cycle:</b> 24/7 Runs Every 6 Hours (06:00, 12:00, 18:00, 00:00 IST)", table_cell),
-            Paragraph("<b>Frameworks:</b> LangGraph + FastAPI + Playwright + Gemini AI + openpyxl", table_cell),
+            Paragraph("<b>Frameworks:</b> LangGraph + FastAPI + Gmail API + Gemini AI + openpyxl", table_cell),
         ]
     ]
     meta_table = Table(meta_data, colWidths=[240, 264])
@@ -213,8 +206,8 @@ def build_pdf(filename: str):
     # =========================================================================
     story.append(Paragraph("1. Master Workflow & Pipeline Architecture", h1_style))
     story.append(Paragraph(
-        "The system follows a strict, non-bypassable sequential pipeline from multi-channel discovery to telemetry dispatch. "
-        "Every job must pass through each validation gate before reaching the application stage:",
+        "The system follows a clean, resilient sequential pipeline from multi-channel discovery to telemetry dispatch. "
+        "Direct bot application on job boards is retired in favor of high-value Recruiter Email Outreach and 1-Click Application Link Preparation:",
         body_style
     ))
 
@@ -261,29 +254,37 @@ def build_pdf(filename: str):
                                │                                │
             ┌──────────────────┴──┐                   ┌─────────┴─────────────┐
             │   NORMAL JOB POST   │                   │ RECRUITER POST (EMAIL)│
+            │  (Job Board/Portal) │                   │  (Explicit HR Email)  │
             └──────────┬──────────┘                   └─────────┬─────────────┘
                        │                                        │
                        │ ┌────────────────────────────────────┐ │
-                       └─► DYNAMIC ATS RESUME PDF TAILORING   ◄─┘
-                         └─────────────────┬──────────────────┘
-                                           │
-                         ┌─────────────────┴──────────────────┐
-                         │   SOURCE-AWARE APPLICATION ENGINE  │
-                         └─┬───────────────┬────────────────┬─┘
-                           │               │                │
-            ┌──────────────┴───┐ ┌─────────┴────────┐ ┌─────┴───────────────┐
-            │ 🟢 MODE 1:       │ │ 🟡 MODE 2:       │ │ ✉️ MODE 3:          │
-            │ DIRECT ATS API   │ │ PLAYWRIGHT       │ │ VERIFIED RECRUITER  │
-            │ (Greenhouse/Lever│ │ PERSISTENT       │ │ EMAIL OUTREACH      │
-            │  /Ashby Submit)  │ │ BROWSER AUTO-FILL│ │ (Gmail API OAuth)   │
-            └──────────────────┘ └──────────────────┘ └─────────────────────┘
-                                           │
+                       ├─► DYNAMIC ATS RESUME PDF TAILORING   ◄─┤
+                       │ └─────────────────┬──────────────────┘ │
+                       │                   │                    │
+                       ▼                   │                    ▼
+            ┌──────────────────────┐       │          ┌──────────────────────┐
+            │ 1-CLICK APPLY LINK   │       │          │ EMAIL GENERATE & SEND│
+            │ (Prepares Link, Cover│       │          │ (Personalized Outreach│
+            │ Note & Tailored PDF) │       │          │ via Gmail API + PDF) │
+            └──────────┬───────────┘       │          └─────────┬────────────┘
+                       │                   │                    │
+                       └───────────────────┼────────────────────┘
+                                           ▼
+                       ┌────────────────────────────────────────────────┐
+                       │            APPLICATION LOG & DATABASE          │
+                       │   (Persists Status, Resume Path & Score)       │
+                       └───────────────────┬────────────────────────────┘
                                            ▼
                        ┌────────────────────────────────────────────────┐
                        │            MULTI-CHANNEL TELEMETRY             │
-                       │  • WhatsApp Daily Report & Top Match Alerts    │
-                       │  • Multi-Tab Excel Workbook (openpyxl)         │
+                       │  • Multi-Tab Daily Excel Report (openpyxl)     │
+                       │  • WhatsApp Daily Alerts & Top Matches         │
                        │  • Email Application Tracking Log              │
+                       └───────────────────┬────────────────────────────┘
+                                           ▼
+                       ┌────────────────────────────────────────────────┐
+                       │      AUTOMATED CYCLE: EVERY 6 HOURS 24/7       │
+                       │     (06:00, 12:00, 18:00, 00:00 IST Cron)     │
                        └────────────────────────────────────────────────┘
     """
 
@@ -412,9 +413,9 @@ sources:
     story.append(PageBreak())
 
     # =========================================================================
-    # 4. SOURCE-AWARE 3-MODE APPLICATION & RESUME TAILORING
+    # 4. TWO-STREAM APPLICATION & RESUME TAILORING
     # =========================================================================
-    story.append(Paragraph("4. Source-Aware Application Engine & Dynamic ATS Resumes", h1_style))
+    story.append(Paragraph("4. Dual-Stream Application Strategy & Dynamic ATS Resumes", h1_style))
     story.append(Paragraph(
         "<b>100% Unique Dynamic ATS Resumes:</b><br/>"
         "For every qualifying job (Score ≥ 65), Gemini extracts key technologies and tailors the summary, skill badges, and "
@@ -424,41 +425,31 @@ sources:
 
     modes_data = [
         [
-            Paragraph("<b>Application Mode</b>", table_header),
-            Paragraph("<b>Target Portals</b>", table_header),
+            Paragraph("<b>Application Stream</b>", table_header),
+            Paragraph("<b>Target Sources</b>", table_header),
             Paragraph("<b>Execution Strategy & Safety Rules</b>", table_header),
         ],
         [
-            Paragraph("<b>🟢 Mode 1: Direct API</b>", table_cell),
-            Paragraph("Greenhouse, Lever, Ashby", table_cell),
-            Paragraph("Programmatic multipart form submission via official job board APIs with tailored ATS resume attached.", table_cell),
+            Paragraph("<b>✉️ Stream A: Recruiter Outreach (REAL EMAIL)</b>", table_cell),
+            Paragraph("LinkedIn Hiring Posts, HackerNews Threads, JD Recruiter Contacts", table_cell),
+            Paragraph("<b>Zero Bounce Policy:</b> Sends cold email outreach ONLY when explicit recruiter email is extracted from post/JD. Generates custom cover note and attaches tailored ATS PDF resume via Gmail API OAuth2.", table_cell),
         ],
         [
-            Paragraph("<b>🟡 Mode 2: Persistent Browser</b>", table_cell),
-            Paragraph("Wellfound, YC, LinkedIn, Workday, Jobicy", table_cell),
-            Paragraph("Playwright Chromium reuses authenticated session profile (<code>data/browser_profile</code>). Auto-fills forms and uploads tailored resume without password leakage.", table_cell),
-        ],
-        [
-            Paragraph("<b>✉️ Mode 3: Verified HR Email</b>", table_cell),
-            Paragraph("LinkedIn Posts, HackerNews Hiring", table_cell),
-            Paragraph("<b>Zero Bounce Policy:</b> Sends cold email outreach ONLY to explicit recruiter emails extracted from post text. Never guesses synthetic addresses.", table_cell),
-        ],
-        [
-            Paragraph("<b>🔴 Mode 4: 1-Click Link Prep</b>", table_cell),
-            Paragraph("Adzuna, Hirist, Shine, Cutshort, Foundit", table_cell),
-            Paragraph("Prepares custom ATS PDF resume + cover note and formats 1-click direct link in Excel report for anti-bot portals.", table_cell),
+            Paragraph("<b>🔗 Stream B: 1-Click Apply Link (APPLY LINK)</b>", table_cell),
+            Paragraph("Job Boards (Adzuna, Naukri, Foundit, Shine, Hirist) & Company Career Portals", table_cell),
+            Paragraph("<b>Direct Form Botting Removed:</b> Eliminates fragile form botting and scraper bans. Generates tailored 1-page ATS PDF resume + customized cover letter and formats 1-click direct link in Excel report for fast user apply.", table_cell),
         ],
     ]
 
-    modes_table = Table(modes_data, colWidths=[120, 130, 254])
+    modes_table = Table(modes_data, colWidths=[150, 130, 224])
     modes_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), PRIMARY),
         ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BG]),
     ]))
     story.append(modes_table)
@@ -513,9 +504,8 @@ sources:
 │   │   ├── application.py        # Application status schema
 │   │   └── job_data.py           # Unified JobData dataclass
 │   ├── services/                 # Core Business Logic
-│   │   ├── application_policy.py # Source-Aware 3-Mode Policy Manager
-│   │   ├── apply_service.py      # Application routing & submission
-│   │   ├── browser_apply_service.py # Playwright Chromium persistent browser engine
+│   │   ├── application_policy.py # Dual-Stream Policy Manager (Recruiter Email vs Apply Link)
+│   │   ├── apply_service.py      # Application routing & link preparation
 │   │   ├── email_service.py      # Gmail API OAuth2 sender
 │   │   ├── mock_scoring_service.py # Heuristic pre-filter engine
 │   │   ├── report_service.py     # openpyxl multi-tab Excel generator
@@ -528,8 +518,7 @@ sources:
 │       ├── experience_analyzer.py # Dedicated 0-2 yrs ExperienceAnalyzer
 │       ├── experience_filter.py  # Senior title & experience hard guard
 │       └── gemini_client.py      # Resilient Gemini client with retry
-├── data/                         # Persistent Storage & Browser Profiles
-│   ├── browser_profile/          # Playwright persistent Chromium session & cookies
+├── data/                         # Persistent Storage
 │   └── jobs.db                   # SQLite primary database
 ├── docs/                         # Architecture Documentation & PDF Blueprints
 │   └── AI_Job_Agent_Architecture_and_Workflow.pdf
@@ -537,7 +526,6 @@ sources:
 ├── resumes/                      # Master & Tailored ATS PDF Resumes
 ├── scripts/                      # Operational Scripts & Tools
 │   ├── run_agent.py              # CLI runner for single pipeline execution
-│   ├── test_browser_apply.py     # Live visible browser auto-apply tester
 │   ├── setup_gmail_token.py      # Gmail OAuth2 token generator
 │   ├── setup_whatsapp.py         # WhatsApp CallMeBot diagnostic tool
 │   └── generate_architecture_pdf.py # Architecture PDF builder

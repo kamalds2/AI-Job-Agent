@@ -408,7 +408,7 @@ def make_email_node(db: Session):
                 company_name = resolve_company(job)
                 resume_pdf = resume_paths.get(job_id)
 
-                # ── Step 1: Draft cover letter / email ───────────
+                # ── Step 1: Draft personalized cover letter / email ───────
                 draft = email_service.draft_email(
                     job_title=job.title,
                     company=company_name,
@@ -423,54 +423,13 @@ def make_email_node(db: Session):
                 draft["job_url"] = job.job_url
                 email_drafts.append(draft)
 
-                apply_method = "none"
-                apply_success = False
-
-                # ── Step 2: Try direct API apply (Greenhouse/Lever/Ashby) ──
-                try:
-                    import concurrent.futures
-                    try:
-                        loop = asyncio.get_running_loop()
-                        with concurrent.futures.ThreadPoolExecutor() as pool:
-                            apply_result = pool.submit(
-                                asyncio.run,
-                                apply_service.apply_to_job(
-                                    job_url=job.job_url,
-                                    company_name=company_name,
-                                    job_title=job.title,
-                                    cover_letter=cover_letter,
-                                    resume_pdf_path=resume_pdf,
-                                    score=score,
-                                ),
-                            ).result()
-                    except RuntimeError:
-                        apply_result = asyncio.run(
-                            apply_service.apply_to_job(
-                                job_url=job.job_url,
-                                company_name=company_name,
-                                job_title=job.title,
-                                cover_letter=cover_letter,
-                                resume_pdf_path=resume_pdf,
-                                score=score,
-                            )
-                        )
-                    apply_method = apply_result.get("method", "none")
-                    apply_success = apply_result.get("success", False)
-                    if apply_success:
-                        direct_applied += 1
-                        logger.info(
-                            f"[APPLIED via {apply_method}] [{score}/100] "
-                            f"{job.title} @ {company_name}"
-                        )
-                except Exception as ae:
-                    logger.warning(f"Direct apply failed for {job.title}: {ae}")
-
-                # ── Step 3: Send cold email to company HR ────────
-                # Prioritize explicit emails in JD/post, then DNS-verified hr@/careers@ (.in, .co, .com)
+                # Check for explicit recruiter email in JD / post
                 hr_emails = guess_hr_email(company_name, job.job_url, jd_text=job.description or "")
                 primary_hr_email = hr_emails[0] if hr_emails else None
                 sent_to_hr = False
+                apply_method = "direct_application_link"
 
+                # ── Stream A: Recruiter Email Outreach (When explicit HR email found) ──
                 if primary_hr_email:
                     sent_to_hr = email_service.send_email(
                         to_email=primary_hr_email,
@@ -480,43 +439,49 @@ def make_email_node(db: Session):
                     )
                     if sent_to_hr:
                         emails_sent += 1
+                        apply_method = "recruiter_email"
                         logger.info(
                             f"[EMAIL -> HR] [{score}/100] {job.title} @ {company_name} "
                             f"-> {primary_hr_email}"
                         )
 
-                # ── Step 4: Send BCC tracking copy to self ───────
-                if EMAIL_ADDRESS and (sent_to_hr or apply_success):
-                    tracking_subject = (
-                        f"[APPLIED] [{score}/100] {job.title} @ {company_name} "
-                        f"| Method: {apply_method}"
-                    )
-                    tracking_body = (
-                        f"Application submitted!\n\n"
-                        f"Role: {job.title}\n"
-                        f"Company: {company_name}\n"
-                        f"Score: {score}/100\n"
-                        f"Apply method: {apply_method}\n"
-                        f"HR email sent to: {primary_hr_email or 'N/A'}\n"
-                        f"Job URL: {job.job_url}\n\n"
-                        f"--- Cover Letter Sent ---\n{cover_letter}"
-                    )
-                    email_service.send_email(
-                        to_email=EMAIL_ADDRESS,
-                        subject=tracking_subject,
-                        body=tracking_body,
-                        pdf_attachment_path=resume_pdf,
+                        # Send tracking copy to self
+                        if EMAIL_ADDRESS:
+                            tracking_subject = f"[OUTREACH SENT] [{score}/100] {job.title} @ {company_name}"
+                            tracking_body = (
+                                f"Recruiter outreach email sent!\n\n"
+                                f"Role: {job.title}\n"
+                                f"Company: {company_name}\n"
+                                f"Score: {score}/100\n"
+                                f"Recruiter Email: {primary_hr_email}\n"
+                                f"Job URL: {job.job_url}\n\n"
+                                f"--- Cover Letter Sent ---\n{cover_letter}"
+                            )
+                            email_service.send_email(
+                                to_email=EMAIL_ADDRESS,
+                                subject=tracking_subject,
+                                body=tracking_body,
+                                pdf_attachment_path=resume_pdf,
+                            )
+
+                # ── Stream B: Direct Application Link Prep (Job boards & portals) ──
+                else:
+                    direct_applied += 1
+                    apply_method = "direct_application_link"
+                    logger.info(
+                        f"[APPLY LINK PREPARED] [{score}/100] {job.title} @ {company_name} "
+                        f"-> {job.job_url}"
                     )
 
-                # ── Step 5: Record in DB + mark APPLIED ─────────
+                # ── Record in DB ──
                 app_repo.create_application(
                     job_id=job_id,
                     resume_id=None,
                     email_sent=sent_to_hr,
                     notes=(
                         f"Score: {score}/100 | "
-                        f"Board: {apply_method} ({'OK' if apply_success else 'FAIL'}) | "
-                        f"HR email: {primary_hr_email or 'N/A'} ({'sent' if sent_to_hr else 'failed'}) | "
+                        f"Method: {apply_method.upper()} | "
+                        f"HR email: {primary_hr_email or 'None (Link in Excel)'} | "
                         f"Resume: {'attached' if resume_pdf else 'none'}"
                     ),
                 )
@@ -524,8 +489,8 @@ def make_email_node(db: Session):
                 db.commit()
 
             logs.append(
-                f"Applied: {direct_applied} via board API, "
-                f"{emails_sent} HR emails sent"
+                f"Processed {len(qualified_ids)} qualified jobs: "
+                f"{emails_sent} HR emails sent, {direct_applied} 1-click apply links prepared"
             )
             return {
                 **state,

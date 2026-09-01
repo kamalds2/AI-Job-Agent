@@ -1,98 +1,50 @@
 """
-Application Policy Manager — Source-Aware Application Strategy & Lifecycle Rules.
-
-Application Modes:
-  🟢 DIRECT_API        — Programmatic ATS API submit (Greenhouse, Lever, Ashby)
-  🟡 PERSISTENT_BROWSER — Playwright using saved browser session (Wellfound, YC, LinkedIn, Workday)
-  ✉️ EMAIL_HR          — Cold email outreach to verified HR emails (careers@company.com)
-  🔴 MANUAL_LINK       — 1-Click application link prep for anti-bot portals (Hirist, Shine, Cutshort)
-
-Match Score Policy:
-  Score >= 85 : AUTO_APPLY (Direct submission via supported mode)
-  Score 75-84 : REVIEW_REQUIRED (Tailored resume PDF + application draft for 1-click review)
-  Score 65-74 : SAVE_LINK (Save job details & link for manual review)
-  Score < 65  : SKIP
+Application Strategy & Policy Engine.
+Routes qualified jobs into two clean streams:
+  1. RECRUITER EMAIL (Verified HR/Recruiter Outreach via Gmail API)
+  2. APPLICATION LINK (Direct Job Board / Portal Link Preparation + Tailored ATS Resume in Excel)
 """
 import logging
 from enum import Enum
-from typing import Tuple, Optional
-from urllib.parse import urlparse
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class ApplicationMode(str, Enum):
-    DIRECT_API = "direct_api"
-    PERSISTENT_BROWSER = "persistent_browser"
-    EMAIL_HR = "email_hr"
-    MANUAL_LINK = "manual_link"
+    EMAIL_HR = "EMAIL_HR"          # Recruiter hiring post with real verified email -> Send tailored email & resume
+    APPLY_LINK = "APPLY_LINK"      # Job board / portal listing -> 1-Click direct link + tailored ATS resume prep
 
 
 class ApplicationStatus(str, Enum):
-    DISCOVERED = "DISCOVERED"
-    MATCHED = "MATCHED"
-    READY = "READY"
-    REVIEW_REQUIRED = "REVIEW_REQUIRED"
-    SUBMITTED = "SUBMITTED"
+    EMAIL_SENT = "EMAIL_SENT"
+    LINK_PREPARED = "LINK_PREPARED"
     SKIPPED = "SKIPPED"
-    FAILED = "FAILED"
-    SAVE_LINK = "SAVE_LINK"
-
-
-# Mapping of domains/sources to application modes & anti-bot policies
-DIRECT_API_DOMAINS = {"greenhouse.io", "lever.co", "ashbyhq.com"}
-PERSISTENT_BROWSER_DOMAINS = {
-    "wellfound.com", "ycombinator.com", "linkedin.com", "workday.com",
-    "jobicy.com", "remotive.com", "adzuna.in", "adzuna.com"
-}
-MANUAL_ONLY_DOMAINS = {"hirist.tech", "shine.com", "cutshort.io", "foundit.in", "naukri.com"}
-
-
-def get_application_mode(job_url: str, source: str, hr_email: Optional[str] = None) -> ApplicationMode:
-    """Determine the optimal application mode based on source policies."""
-    if hr_email:
-        return ApplicationMode.EMAIL_HR
-
-    url_lower = (job_url or "").lower()
-
-    # Check direct API ATS domains
-    for domain in DIRECT_API_DOMAINS:
-        if domain in url_lower:
-            return ApplicationMode.DIRECT_API
-
-    # Check anti-bot restricted portals (require manual link prep)
-    for domain in MANUAL_ONLY_DOMAINS:
-        if domain in url_lower:
-            return ApplicationMode.MANUAL_LINK
-
-    # Check browser-assisted portals
-    for domain in PERSISTENT_BROWSER_DOMAINS:
-        if domain in url_lower:
-            return ApplicationMode.PERSISTENT_BROWSER
-
-    # Default fallback: try persistent browser first, then HR email
-    return ApplicationMode.PERSISTENT_BROWSER
 
 
 def determine_application_strategy(
-    score: int,
+    match_score: int,
     job_url: str,
-    source: str,
+    company_name: str,
     hr_email: Optional[str] = None,
 ) -> Tuple[ApplicationStatus, ApplicationMode, str]:
     """
-    Determine application lifecycle status and execution mode based on match score and source capabilities.
+    Classify application mode and status based on score and contact availability.
     """
-    mode = get_application_mode(job_url, source, hr_email)
+    if match_score < 65:
+        return ApplicationStatus.SKIPPED, ApplicationMode.APPLY_LINK, f"Match score {match_score} below threshold (65)"
 
-    if score < 65:
-        return ApplicationStatus.SKIPPED, mode, f"Score {score}/100 below 65 threshold"
+    # If explicit recruiter/HR email is present -> Mode 1: Recruiter Email Outreach
+    if hr_email and "@" in hr_email:
+        return (
+            ApplicationStatus.EMAIL_SENT,
+            ApplicationMode.EMAIL_HR,
+            f"Explicit recruiter email found ({hr_email}) -> Send personalized outreach",
+        )
 
-    if 65 <= score < 75:
-        return ApplicationStatus.SAVE_LINK, ApplicationMode.MANUAL_LINK, f"Score {score}/100 saved for 1-click manual review"
-
-    if 75 <= score < 85:
-        return ApplicationStatus.REVIEW_REQUIRED, mode, f"Score {score}/100 prepared for 1-click user review"
-
-    # score >= 85
-    return ApplicationStatus.READY, mode, f"Score {score}/100 approved for auto-apply"
+    # Otherwise -> Mode 2: Application Link Preparation (Excel + Tailored Resume)
+    return (
+        ApplicationStatus.LINK_PREPARED,
+        ApplicationMode.APPLY_LINK,
+        f"Job board / portal listing -> Prepare direct application link and tailored ATS resume",
+    )

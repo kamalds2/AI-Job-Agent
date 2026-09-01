@@ -1,0 +1,1126 @@
+Yes. **That is the correct direction for the final architecture.** We should not have only a few job-board connectors. We should build a **multi-source job discovery engine** where every source is checked for fresh jobs/posts, then everything goes through the same filtering, scoring, resume-tailoring, application and reporting pipeline.
+
+One important distinction: we should call these **source connectors**, but not assume every website can legally or technically be scraped. Some platforms explicitly prohibit automated scraping—for example, LinkedIn prohibits unauthorized scraping/automated access, Freshersworld prohibits automated agents used to mine data, and Hirist says it uses technology to exclude robots and prohibits circumventing it. ([LinkedIn][1])
+
+So our connector framework should support **official APIs, permitted feeds/public endpoints, authorized integrations, and other sources where automated access is allowed**, rather than trying to bypass firewalls/CAPTCHAs.
+
+## 1. Final source architecture
+
+We should have:
+
+```text
+                    AI JOB AGENT
+                         |
+                 SEARCH MANAGER
+                         |
+        +----------------+----------------+
+        |                |                |
+        v                v                v
+   GLOBAL REMOTE     INDIAN JOB       RECRUITER
+     SOURCES          PORTALS           POSTS
+        |                |                |
+        +----------------+----------------+
+                         |
+                         v
+                  JOB NORMALIZER
+                         |
+                         v
+                  DUPLICATE CHECK
+                         |
+                         v
+                  TODAY FILTER
+                         |
+                         v
+               EXPERIENCE ANALYZER
+                         |
+                         v
+                    ROLE MATCHER
+                         |
+                         v
+                   SKILL MATCHER
+                         |
+                         v
+                  RESUME SCORER
+                         |
+                         v
+                 QUALIFIED JOBS
+                         |
+              +----------+----------+
+              |                     |
+              v                     v
+       APPLICATION LINK       RECRUITER EMAIL
+              |                     |
+              |               RESUME TAILOR
+              |                     |
+              |               EMAIL GENERATE
+              |                     |
+              |                 SEND EMAIL
+              |                     |
+              +----------+----------+
+                         |
+                         v
+                  APPLICATION LOG
+                         |
+                         v
+                  EXCEL REPORT
+                         |
+                         v
+                     YOUR EMAIL
+```
+
+---
+
+# 2. Sources we should target
+
+### Global / Remote
+
+```text
+RemoteOK
+Wellfound
+Y Combinator Jobs
+We Work Remotely
+Remotive
+FlexJobs* 
+Jobspresso
+Remote.co
+Working Nomads
+Himalayas
+Indeed
+LinkedIn
+Company Career Pages
+Greenhouse
+Lever
+Ashby
+```
+
+`*` We should exclude subscription/paywalled sources from your search strategy, as you requested.
+
+### Indian job portals
+
+```text
+Naukri
+Foundit
+Shine
+Hirist
+Cutshort
+Freshersworld
+Indeed India
+TimesJobs
+Internshala
+Apna
+Instahyre
+WorkIndia
+ iimjobs
+```
+
+And:
+
+```text
+Company career pages
+```
+
+are extremely important.
+
+---
+
+# 3. We keep our existing connectors
+
+We **do not throw away what we already built**.
+
+For example:
+
+```text
+app/
+└── connectors/
+    │
+    ├── base.py
+    ├── registry.py
+    ├── manager.py
+    │
+    ├── remoteok_connector.py
+    │
+    ├── wellfound_connector.py
+    ├── ycombinator_connector.py
+    ├── weworkremotely_connector.py
+    ├── remotive_connector.py
+    │
+    ├── naukri_connector.py
+    ├── foundit_connector.py
+    ├── shine_connector.py
+    ├── hirist_connector.py
+    ├── cutshort_connector.py
+    ├── freshersworld_connector.py
+    │
+    ├── indeed_connector.py
+    │
+    ├── company_career_connector.py
+    │
+    └── recruiter_posts/
+```
+
+But remember our earlier decision:
+
+**We should not create a separate `jobboards/remoteok.py` architecture.**
+
+Everything goes through:
+
+```text
+connectors/
+```
+
+with the common connector interface.
+
+---
+
+# 4. Don't hard-code everything into SearchManager
+
+This is where I want to improve our previous design.
+
+Instead of:
+
+```text
+SearchManager
+    |
+    ├── RemoteOK
+    ├── Wellfound
+    ├── Naukri
+    ├── Foundit
+    └── ...
+```
+
+we use:
+
+```text
+SearchManager
+       |
+       v
+ConnectorRegistry
+       |
+       +---- RemoteOK
+       +---- Wellfound
+       +---- YC
+       +---- Indeed
+       +---- Naukri
+       +---- Foundit
+       +---- Hirist
+       +---- Cutshort
+       +---- Freshersworld
+       +---- Company Careers
+       +---- Recruiter Posts
+```
+
+That means adding a new source later doesn't require rewriting SearchManager.
+
+---
+
+# 5. Your registry becomes extremely important
+
+Your existing:
+
+```python
+CONNECTORS = {}
+
+
+def register_connector(connector_class):
+    CONNECTORS[
+        connector_class.connector_name
+    ] = connector_class
+
+    return connector_class
+```
+
+is the foundation.
+
+Eventually:
+
+```text
+CONNECTORS
+
+remoteok
+wellfound
+ycombinator
+indeed
+naukri
+foundit
+shine
+hirist
+cutshort
+freshersworld
+company_careers
+```
+
+will be registered.
+
+---
+
+# 6. But we need SOURCE CONFIGURATION
+
+This is something I recommend adding now.
+
+Instead of modifying Python every time we want to enable/disable a source, use:
+
+```text
+app/config/job_sources.yml
+```
+
+Example:
+
+```yaml
+sources:
+
+  remoteok:
+    enabled: true
+    type: remote
+    priority: high
+
+  wellfound:
+    enabled: true
+    type: remote
+    priority: high
+
+  ycombinator:
+    enabled: true
+    type: remote
+    priority: high
+
+  indeed:
+    enabled: true
+    type: job_board
+    priority: high
+
+  naukri:
+    enabled: true
+    type: job_board
+    priority: high
+
+  foundit:
+    enabled: true
+    type: job_board
+    priority: high
+
+  shine:
+    enabled: true
+    type: job_board
+    priority: medium
+
+  hirist:
+    enabled: true
+    type: job_board
+    priority: high
+
+  cutshort:
+    enabled: true
+    type: job_board
+    priority: high
+
+  freshersworld:
+    enabled: true
+    type: job_board
+    priority: medium
+
+  company_careers:
+    enabled: true
+    type: career_page
+    priority: high
+
+  recruiter_posts:
+    enabled: true
+    type: recruiter_post
+    priority: high
+```
+
+Then:
+
+```text
+enabled: true
+```
+
+means search it.
+
+```text
+enabled: false
+```
+
+means skip it.
+
+---
+
+# 7. Daily jobs are NOT the same as recruiter posts
+
+This is very important.
+
+We should have two different concepts.
+
+### Normal job listing
+
+Example:
+
+```text
+Company:
+ABC Technologies
+
+Role:
+Java Developer
+
+Posted:
+September 1, 2026
+
+Experience:
+0–2 years
+
+Apply:
+https://...
+```
+
+### Recruiter hiring post
+
+Example:
+
+```text
+Hiring Java Developers!
+
+Experience:
+0–2 years
+
+Location:
+Hyderabad
+
+Send resume:
+recruiter@gmail.com
+```
+
+The second one may not have a conventional application URL.
+
+Therefore:
+
+```text
+JOB CONNECTORS
+        |
+        v
+JOB LISTING
+
+RECRUITER CONNECTORS
+        |
+        v
+HIRING POST
+```
+
+Both eventually become a common internal object.
+
+---
+
+# 8. We need a common JobData format
+
+Every connector should return something like:
+
+```text
+JobData
+```
+
+regardless of where it came from.
+
+For example:
+
+```text
+source
+source_job_id
+title
+company
+location
+remote
+employment_type
+experience
+salary
+description
+skills
+job_url
+apply_url
+posted_at
+recruiter_name
+recruiter_email
+post_url
+source_type
+```
+
+Then RemoteOK and Naukri don't need to look identical.
+
+The normalizer converts them into the same structure.
+
+---
+
+# 9. The most important part: TODAY filter
+
+You specifically said:
+
+> if today's report, I want today's hiring jobs
+
+So we need strict freshness handling.
+
+The pipeline should be:
+
+```text
+FETCH
+  ↓
+POSTED DATE EXTRACTION
+  ↓
+NORMALIZE DATE
+  ↓
+IS TODAY?
+  |
+  +---- NO → REJECT
+  |
+ YES
+  ↓
+CONTINUE
+```
+
+But we also need:
+
+```text
+posted today
+posted X hours ago
+posted today
+```
+
+and relative timestamps such as:
+
+```text
+2 hours ago
+5 hours ago
+19 hours ago
+```
+
+converted into an actual timestamp.
+
+---
+
+# 10. Don't trust the search-result date alone
+
+This addresses the problem you previously found.
+
+You said:
+
+> report says today's job but opening the link shows 5+ years experience
+
+Exactly.
+
+We need:
+
+```text
+SEARCH RESULT
+     ↓
+GET JOB URL
+     ↓
+FETCH FULL JOB CONTENT
+     ↓
+PARSE FULL DESCRIPTION
+     ↓
+EXTRACT EXPERIENCE
+     ↓
+EXTRACT ROLE
+     ↓
+EXTRACT SKILLS
+     ↓
+VALIDATE
+```
+
+The search result is only **discovery**.
+
+The actual job page is the **source of truth**, when legally/technically accessible.
+
+---
+
+# 11. Experience extraction needs to be much stronger
+
+We shouldn't simply search for:
+
+```text
+"2 years"
+```
+
+We need an `ExperienceAnalyzer`.
+
+It should understand:
+
+```text
+0-2 years
+0 to 2 years
+1-2 years
+1+ years
+2 years
+freshers
+fresher
+entry level
+graduate
+junior
+experienced
+2-4 years
+3-5 years
+5+ years
+minimum 3 years
+```
+
+And detect things like:
+
+```text
+Experience: 0–2 years
+```
+
+as:
+
+```text
+minimum = 0
+maximum = 2
+```
+
+---
+
+# 12. Your filter
+
+For your current target:
+
+```text
+MAX_EXPERIENCE = 2
+```
+
+So:
+
+```text
+0 years     → PASS
+Fresher     → PASS
+0–1         → PASS
+0–2         → PASS
+1–2         → PASS
+2 years     → PASS
+2–3         → REVIEW/REJECT depending on policy
+3+          → REJECT
+5+          → REJECT
+8+          → REJECT
+```
+
+And this should happen **before resume tailoring**.
+
+That saves time and API cost.
+
+---
+
+# 13. Role filter
+
+Then:
+
+```text
+Experience PASS
+       ↓
+Role extraction
+       ↓
+Career Profile
+       ↓
+Role similarity
+```
+
+For example:
+
+```text
+Java Developer
+Java Full Stack Developer
+Spring Boot Developer
+Backend Developer
+Software Engineer
+Full Stack Developer
+Microservices Developer
+```
+
+are relevant.
+
+But:
+
+```text
+HR Recruiter
+US Staffing Recruiter
+Sales Executive
+Business Development Executive
+```
+
+are not.
+
+---
+
+# 14. Then skill matching
+
+For example:
+
+```text
+JD:
+
+Java
+Spring Boot
+REST API
+Microservices
+SQL
+AWS
+React
+```
+
+Compare against your resume:
+
+```text
+Java
+Spring Boot
+Microservices
+REST
+SQL
+AWS
+React
+```
+
+Then:
+
+```text
+skill_score = 88
+```
+
+---
+
+# 15. Final score
+
+We can eventually use:
+
+```text
+Overall Score =
+    30% Role Match
+  + 25% Experience Match
+  + 25% Skill Match
+  + 10% Location/Remote Match
+  + 10% Freshness/Source Quality
+```
+
+For example:
+
+```text
+Java Full Stack Developer
+0–2 years
+Remote
+Java + Spring Boot + React + AWS
+Posted today
+
+Score = 94%
+```
+
+---
+
+# 16. Then resume tailoring
+
+Only after:
+
+```text
+TODAY
++
+EXPERIENCE
++
+ROLE
++
+SKILLS
++
+SCORE
+```
+
+passes.
+
+Then:
+
+```text
+JD
+ ↓
+Resume
+ ↓
+Claude/AI
+ ↓
+Tailored Resume
+ ↓
+PDF
+```
+
+Again, the agent must **never invent experience, projects, employers, certifications, or skills** just to increase the score.
+
+---
+
+# 17. Then application path depends on source
+
+This is another major improvement.
+
+```text
+                         QUALIFIED JOB
+                              |
+            +-----------------+----------------+
+            |                 |                |
+            v                 v                v
+        APPLY URL        RECRUITER EMAIL    API APPLY
+            |                 |                |
+            v                 v                v
+       APPLICATION       EMAIL SERVICE      API SERVICE
+         SERVICE
+```
+
+For example:
+
+```text
+Company career page
+        ↓
+Application URL
+        ↓
+Playwright/manual-assisted application
+```
+
+if automation is permitted.
+
+For a recruiter post:
+
+```text
+Recruiter email
+        ↓
+Tailored resume
+        ↓
+Email
+```
+
+For a source with an authorized application API:
+
+```text
+API
+ ↓
+Apply
+```
+
+---
+
+# 18. Six-hour scheduler
+
+Your final requirement is:
+
+> every 6 hours
+
+So:
+
+```text
+00:00
+06:00
+12:00
+18:00
+```
+
+or relative to the agent's configured timezone.
+
+Every run:
+
+```text
+START
+ ↓
+Load Career Profile
+ ↓
+Load enabled connectors
+ ↓
+Run connectors concurrently
+ ↓
+Collect jobs
+ ↓
+Normalize
+ ↓
+Deduplicate
+ ↓
+TODAY FILTER
+ ↓
+EXPERIENCE FILTER
+ ↓
+ROLE FILTER
+ ↓
+SKILL MATCH
+ ↓
+SCORE
+ ↓
+Tailor resumes
+ ↓
+Application/Email
+ ↓
+Log everything
+ ↓
+Generate Excel
+ ↓
+Send report
+ ↓
+END
+```
+
+---
+
+# 19. Concurrency
+
+Since we decided earlier to use:
+
+```text
+httpx.AsyncClient
+async/await
+```
+
+we can run permitted connectors concurrently:
+
+```text
+                 SearchManager
+                      |
+        +-------------+-------------+
+        |             |             |
+        v             v             v
+    RemoteOK       Wellfound       YC
+        |             |             |
+        +-------------+-------------+
+                      |
+              +-------+-------+
+              |       |       |
+              v       v       v
+            Indeed Naukri Foundit
+```
+
+That means we don't wait:
+
+```text
+RemoteOK → finish
+then Wellfound
+then YC
+then Naukri
+```
+
+Instead:
+
+```text
+RemoteOK ──────┐
+Wellfound ─────┤
+YC ────────────┤
+Indeed ────────┤
+Naukri ────────┤
+Foundit ───────┤
+Hirist ────────┤
+Cutshort ──────┤
+Freshersworld ─┘
+       ↓
+   AGGREGATE
+```
+
+subject to each source's permitted access/rate limits.
+
+---
+
+# 20. We should also add source health monitoring
+
+Because some sites will fail.
+
+For every connector:
+
+```text
+source
+last_success
+last_failure
+jobs_found
+jobs_saved
+duplicates
+blocked
+response_time
+error
+```
+
+Example:
+
+```text
+RemoteOK
+Status: SUCCESS
+Jobs: 42
+
+Wellfound
+Status: SUCCESS
+Jobs: 18
+
+Naukri
+Status: BLOCKED
+Action: Disabled
+
+Hirist
+Status: ACCESS_RESTRICTED
+Action: Use permitted integration/public route
+```
+
+This is much better than allowing one blocked website to crash the entire agent.
+
+Hirist, for example, explicitly says it uses technology to exclude robots and prohibits bypassing those controls. ([Hirist][2])
+
+---
+
+# 21. So our final connector architecture becomes
+
+```text
+app/
+│
+├── connectors/
+│   │
+│   ├── base.py
+│   ├── registry.py
+│   ├── manager.py
+│   │
+│   ├── remoteok_connector.py
+│   ├── wellfound_connector.py
+│   ├── ycombinator_connector.py
+│   ├── weworkremotely_connector.py
+│   ├── remotive_connector.py
+│   │
+│   ├── indeed_connector.py
+│   ├── naukri_connector.py
+│   ├── foundit_connector.py
+│   ├── shine_connector.py
+│   ├── hirist_connector.py
+│   ├── cutshort_connector.py
+│   ├── freshersworld_connector.py
+│   │
+│   ├── company_career_connector.py
+│   │
+│   └── recruiter_posts/
+│       ├── base_recruiter_connector.py
+│       ├── linkedin_connector.py
+│       ├── recruiter_post_manager.py
+│       └── ...
+```
+
+But **we don't necessarily implement every connector immediately**.
+
+We build the framework first.
+
+---
+
+# 22. Most important change to our Day 6 work
+
+Our Day 6 shouldn't simply be:
+
+```text
+RemoteOK → SearchManager
+```
+
+It should be:
+
+```text
+                 SEARCH MANAGER
+                       |
+                 REGISTRY
+                       |
+          +------------+------------+
+          |            |            |
+       Remote        India       Recruiter
+       Sources       Sources       Sources
+          |            |            |
+          +------------+------------+
+                       |
+                       v
+                 JOB NORMALIZER
+```
+
+Then we add connectors one at a time.
+
+---
+
+# 23. One more thing: "all jobs in the world"
+
+We should aim for **maximum practical coverage**, but I don't want to promise literally every job on the internet.
+
+There are millions of company career pages and many private/restricted systems.
+
+The better architecture is:
+
+```text
+Major Job Boards
++
+Remote Job Sources
++
+ATS Platforms
++
+Company Career Pages
++
+Authorized Recruiter Sources
++
+Permitted Public Sources
+```
+
+This can give the agent **very broad coverage** without relying on prohibited scraping.
+
+Indeed, for example, provides an official developer/integration framework with restrictions on how its APIs and data may be used, so we should use official/approved access where available rather than attempting to bypass controls. ([Indeed Documentation][3])
+
+---
+
+## Final target for your project
+
+Your agent should ultimately behave like this:
+
+```text
+                 YOUR RESUME
+                     |
+                     v
+              CAREER PROFILE
+                     |
+                     v
+             SEARCH CONFIGURATION
+                     |
+                     v
+       +-------------+-------------+
+       |             |             |
+       v             v             v
+   REMOTE JOBS   INDIA JOBS   RECRUITER POSTS
+       |             |             |
+       +-------------+-------------+
+                     |
+                     v
+                TODAY ONLY
+                     |
+                     v
+             FULL JD / POST
+                     |
+                     v
+             EXPERIENCE 0–2
+                     |
+                     v
+               ROLE MATCH
+                     |
+                     v
+               SKILL MATCH
+                     |
+                     v
+                SCORE 0–100
+                     |
+                     v
+               QUALIFIED JOB
+                     |
+            +--------+---------+
+            |                  |
+            v                  v
+       APPLY LINK         REAL EMAIL
+            |                  |
+            |             TAILORED RESUME
+            |                  |
+            |             PERSONALIZED EMAIL
+            |                  |
+            +--------+---------+
+                     |
+                     v
+              APPLICATION LOG
+                     |
+                     v
+              EXCEL REPORT
+                     |
+                     v
+                EMAIL REPORT
+                     |
+                     v
+               EVERY 6 HOURS
+```
+
+**So yes: keep RemoteOK, Wellfound, Y Combinator and all the connectors we have already planned, and expand the connector registry to cover the Indian portals and recruiter-post sources.** The key is that each connector only handles **source acquisition**; the filtering, experience detection, resume matching, tailoring, application and reporting should be centralized so every source follows exactly the same rules.
+
+And for LinkedIn specifically, we should not build a login/scraping/bypass mechanism. LinkedIn's current rules prohibit unauthorized scraping and unauthorized automated access; its crawling terms say automated crawling requires express permission. ([linkedin.com][4])
+
+[1]: https://ac.linkedin.com/legal/user-agreement?utm_source=chatgpt.com "User Agreement | LinkedIn"
+[2]: https://recruit.hirist.tech/terms-condition?utm_source=chatgpt.com "Terms & Conditions | hirist.tech"
+[3]: https://docs.indeed.com/legal-terms/developer-agreement?utm_source=chatgpt.com "Indeed Developer Agreement | Indeed Partner Docs"
+[4]: https://www.linkedin.com/legal/crawling-terms?utm_source=chatgpt.com "LinkedIn Crawling Terms and Conditions"
