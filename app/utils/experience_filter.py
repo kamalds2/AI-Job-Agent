@@ -44,47 +44,10 @@ EXP_MIN_PATTERNS = [
 ]
 
 
+from app.utils.experience_analyzer import ExperienceAnalyzer
+
 def validate_0_to_2_years_experience(job_title: str, job_description: str) -> Tuple[bool, str]:
     """
     Validate whether a job aligns with candidate's strict 0-2 years experience target.
-
-    Returns:
-        (is_valid: bool, reason: str)
-        If is_valid is False, the job MUST NOT be scored >=65 or applied to.
     """
-    title_lower = (job_title or "").lower().strip()
-    desc_clean = (job_description or "").lower().strip()
-    combined_text = f"{title_lower} {desc_clean}"
-
-    # 1. Check title for Senior / Executive / Lead keywords
-    for kw in SENIOR_TITLE_KEYWORDS:
-        if re.search(r"\b" + re.escape(kw) + r"\b", title_lower):
-            return False, f"Title contains senior/lead keyword '{kw}' (exceeds 0-2 years target)"
-
-    # 2. Check for experience ranges (e.g. 3-5 years, 2-4 years, 4-6 years)
-    for match in EXP_RANGE_PATTERN.finditer(combined_text):
-        low_str, high_str = match.group(1), match.group(2)
-        if low_str.isdigit() and high_str.isdigit():
-            low, high = int(low_str), int(high_str)
-            # If the minimum requirement is 3 or more (e.g. 3-5 years) -> reject
-            if low >= 3:
-                return False, f"Job requires {low}-{high} years of experience (exceeds 0-2 years target)"
-            # If the range is 2-4, 2-5, or 2-6 years -> reject (target is strictly 0-2 years)
-            if low >= 2 and high >= 4:
-                return False, f"Job requires {low}-{high} years of experience (exceeds 0-2 years target)"
-
-    # 3. Check for single/minimum experience requirements (e.g. 3+ years, 4+ years, minimum 5 years)
-    for pattern in EXP_MIN_PATTERNS:
-        for match in pattern.finditer(combined_text):
-            exp_str = match.group(1)
-            if exp_str and exp_str.isdigit():
-                exp = int(exp_str)
-                if exp >= 3:
-                    return False, f"Job description requires {exp}+ years of experience (exceeds 0-2 years target)"
-
-    # 4. Check for explicit 0-2 years / Junior title match
-    is_explicit_junior = any(re.search(r"\b" + re.escape(kw) + r"\b", title_lower) for kw in JUNIOR_TITLE_KEYWORDS)
-    if is_explicit_junior:
-        return True, "Aligned with 0-2 years junior/associate role"
-
-    return True, "Within acceptable 0-2 years experience range"
+    return ExperienceAnalyzer.validate_for_candidate(job_title, job_description)

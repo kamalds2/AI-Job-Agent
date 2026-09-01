@@ -1,6 +1,7 @@
 """
 Generate Comprehensive Architecture, Workflow, and Directory Structure PDF for AI Job Agent.
-Outputs a beautifully styled, multi-page professional PDF document.
+Incorporates the complete architectural blueprint, pipeline diagrams, YAML source configuration,
+ExperienceAnalyzer, and weighted scoring formulas from the master system design.
 """
 import os
 import sys
@@ -21,16 +22,14 @@ from reportlab.platypus import (
 )
 from reportlab.pdfgen import canvas
 
-# Colors
-PRIMARY = colors.HexColor("#1A365D")    # Deep Navy
-SECONDARY = colors.HexColor("#2B6CB0")  # Slate Blue
-ACCENT = colors.HexColor("#319795")     # Teal Accent
-DARK_TEXT = colors.HexColor("#2D3748")  # Charcoal
-LIGHT_BG = colors.HexColor("#F7FAFC")   # Off-white / light slate
+# Theme Palette
+PRIMARY = colors.HexColor("#0F294A")    # Deep Navy
+SECONDARY = colors.HexColor("#1E4E8C")  # Indigo Blue
+ACCENT = colors.HexColor("#0D9488")     # Emerald Teal
+DARK_TEXT = colors.HexColor("#1F2937")  # Slate Gray
+LIGHT_BG = colors.HexColor("#F8FAFC")   # Clean Canvas Off-white
 BORDER_COLOR = colors.HexColor("#E2E8F0")
-GREEN_COLOR = colors.HexColor("#2F855A")
-YELLOW_COLOR = colors.HexColor("#D69E2E")
-RED_COLOR = colors.HexColor("#C53030")
+CARD_BG = colors.HexColor("#EDF2F7")
 
 
 class NumberedCanvas(canvas.Canvas):
@@ -54,19 +53,19 @@ class NumberedCanvas(canvas.Canvas):
     def draw_page_decorations(self, page_count):
         self.saveState()
         self.setFont("Helvetica", 8)
-        self.setFillColor(colors.HexColor("#718096"))
+        self.setFillColor(colors.HexColor("#64748B"))
 
-        # Header (pages > 1)
+        # Header on pages > 1
         if self._pageNumber > 1:
-            self.drawString(54, 11 * inch - 36, "Autonomous AI Job Agent — Complete Architecture & Workflow Blueprint")
+            self.drawString(54, 11 * inch - 36, "AI Job Agent — Master Workflow, Architecture & Directory Blueprint")
             self.setStrokeColor(BORDER_COLOR)
             self.setLineWidth(0.5)
             self.line(54, 11 * inch - 42, 8.5 * inch - 54, 11 * inch - 42)
 
-        # Footer (all pages)
+        # Footer on all pages
         page_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(8.5 * inch - 54, 36, page_text)
-        self.drawString(54, 36, f"Confidential & Proprietary — Generated for Kamal Kumar | {datetime.now().strftime('%B %d, %Y')}")
+        self.drawString(54, 36, f"Master System Architecture — Prepared for Kamal Kumar | {datetime.now().strftime('%B %d, %Y')}")
         self.setStrokeColor(BORDER_COLOR)
         self.setLineWidth(0.5)
         self.line(54, 46, 8.5 * inch - 54, 46)
@@ -86,44 +85,43 @@ def build_pdf(filename: str):
 
     styles = getSampleStyleSheet()
 
-    # Custom styles
     title_style = ParagraphStyle(
         "DocTitle",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=24,
-        leading=28,
+        fontSize=22,
+        leading=26,
         textColor=PRIMARY,
-        spaceAfter=6,
+        spaceAfter=4,
     )
     subtitle_style = ParagraphStyle(
         "DocSubTitle",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=12,
-        leading=16,
+        fontSize=11,
+        leading=15,
         textColor=SECONDARY,
-        spaceAfter=15,
+        spaceAfter=12,
     )
     h1_style = ParagraphStyle(
         "SectionH1",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=15,
-        leading=19,
+        fontSize=14,
+        leading=18,
         textColor=PRIMARY,
-        spaceBefore=14,
-        spaceAfter=8,
+        spaceBefore=12,
+        spaceAfter=6,
         keepWithNext=True,
     )
     h2_style = ParagraphStyle(
         "SectionH2",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=11.5,
+        fontSize=11,
         leading=15,
         textColor=SECONDARY,
-        spaceBefore=10,
+        spaceBefore=8,
         spaceAfter=4,
         keepWithNext=True,
     )
@@ -131,10 +129,10 @@ def build_pdf(filename: str):
         "DocBody",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=9.5,
-        leading=13.5,
+        fontSize=9,
+        leading=13,
         textColor=DARK_TEXT,
-        spaceAfter=6,
+        spaceAfter=5,
     )
     body_bold = ParagraphStyle(
         "DocBodyBold",
@@ -144,32 +142,32 @@ def build_pdf(filename: str):
     bullet_style = ParagraphStyle(
         "DocBullet",
         parent=body_style,
-        leftIndent=14,
-        firstLineIndent=-10,
-        spaceAfter=3,
+        leftIndent=12,
+        firstLineIndent=-8,
+        spaceAfter=2.5,
     )
     code_style = ParagraphStyle(
         "DocCode",
         parent=styles["Normal"],
         fontName="Courier",
-        fontSize=8,
-        leading=11,
-        textColor=colors.HexColor("#2C5282"),
+        fontSize=7.5,
+        leading=10.5,
+        textColor=colors.HexColor("#1E3A8A"),
     )
     table_cell = ParagraphStyle(
         "TableCell",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=8.5,
-        leading=11.5,
+        fontSize=8,
+        leading=11,
         textColor=DARK_TEXT,
     )
     table_header = ParagraphStyle(
         "TableHeader",
         parent=styles["Normal"],
         fontName="Helvetica-Bold",
-        fontSize=9,
-        leading=12,
+        fontSize=8.5,
+        leading=11.5,
         textColor=colors.white,
     )
 
@@ -178,23 +176,23 @@ def build_pdf(filename: str):
     # =========================================================================
     # HEADER BANNER & TITLE
     # =========================================================================
-    story.append(Paragraph("AI Job Agent: System Architecture & Workflow Blueprint", title_style))
-    story.append(Paragraph("End-to-End Autonomous Job Discovery, AI Scoring, Dynamic ATS Tailoring & Multi-Mode Application System", subtitle_style))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=PRIMARY, spaceBefore=2, spaceAfter=14))
+    story.append(Paragraph("AI Job Agent: Master Architecture & Workflow Blueprint", title_style))
+    story.append(Paragraph("End-to-End Autonomous Job Discovery, Multi-Tier Scoring, Dynamic ATS Tailoring & Multi-Mode Applications", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=PRIMARY, spaceBefore=2, spaceAfter=10))
 
     # Meta Overview Box
     meta_data = [
         [
             Paragraph("<b>Target Candidate:</b> Kamal Kumar", table_cell),
-            Paragraph("<b>Primary Tech Stack:</b> Java, Spring Boot, Python, FastAPI, AWS, Docker, AI", table_cell),
+            Paragraph("<b>Core Stack:</b> Java, Spring Boot, Python, FastAPI, AWS, Docker, AI Agents", table_cell),
         ],
         [
-            Paragraph("<b>Experience Level:</b> 0 to 2 Years ONLY (Junior / Entry-Level)", table_cell),
-            Paragraph("<b>Active Connectors:</b> 16 Sources across APIs, ATS, & Social Posts", table_cell),
+            Paragraph("<b>Target Experience:</b> 0 to 2 Years ONLY (Strict Entry-Level)", table_cell),
+            Paragraph("<b>Source Registry:</b> 16 Active Connectors (APIs, ATS, Social Posts)", table_cell),
         ],
         [
-            Paragraph("<b>Execution Cycle:</b> 24/7 Fixed Runs (06:00, 12:00, 18:00, 00:00 IST)", table_cell),
-            Paragraph("<b>Core Framework:</b> LangGraph + FastAPI + Playwright + Gemini AI", table_cell),
+            Paragraph("<b>Scheduler Cycle:</b> 24/7 Runs Every 6 Hours (06:00, 12:00, 18:00, 00:00 IST)", table_cell),
+            Paragraph("<b>Frameworks:</b> LangGraph + FastAPI + Playwright + Gemini AI + openpyxl", table_cell),
         ]
     ]
     meta_table = Table(meta_data, colWidths=[240, 264])
@@ -202,215 +200,200 @@ def build_pdf(filename: str):
         ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
         ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
     ]))
     story.append(meta_table)
-    story.append(Spacer(1, 14))
-
-    # =========================================================================
-    # 1. EXECUTIVE OVERVIEW & ARCHITECTURAL PHILOSOPHY
-    # =========================================================================
-    story.append(Paragraph("1. Executive Overview & Architecture", h1_style))
-    story.append(Paragraph(
-        "The <b>AI Job Agent</b> is an enterprise-grade, autonomous job application ecosystem designed to solve the challenges of modern technical hiring. "
-        "Unlike generic scrapers or basic autofill bots, this system provides a <b>resilient, 6-stage LangGraph workflow</b> powered by Google Gemini AI, "
-        "strict heuristic experience filters, dynamic 1-page ATS PDF generation, and a Source-Aware 3-Mode Application Engine.",
-        body_style
-    ))
-    story.append(Paragraph(
-        "<b>Core Architectural Pillars:</b>", body_style
-    ))
-    story.append(Paragraph("• <b>Multi-Channel Ingestion:</b> Concurrently queries 16 diverse job sources including enterprise ATS endpoints (Greenhouse, Lever, Ashby, Workday), public remote job APIs (Jobicy, Remotive, Himalayas, Adzuna), and social recruiter posts (LinkedIn, HackerNews).", bullet_style))
-    story.append(Paragraph("• <b>Zero-Tolerance Experience Guard:</b> A multi-layer heuristic and semantic filter that automatically hard-blocks any role requiring &gt;2 years of experience or containing senior/lead keywords before expensive LLM processing.", bullet_style))
-    story.append(Paragraph("• <b>100% Unique Dynamic ATS Resumes:</b> For every qualifying role, Gemini extracts required skills and dynamically compiles a bespoke single-page PDF resume using ReportLab Platypus.", bullet_style))
-    story.append(Paragraph("• <b>Source-Aware 3-Mode Application Policy:</b> Distinguishes between programmatic ATS APIs, persistent browser automation, verified HR email outreach, and 1-click manual links.", bullet_style))
-    story.append(Paragraph("• <b>Real-Time Multi-Channel Telemetry:</b> Delivers instant daily summaries and high-match alerts via WhatsApp (CallMeBot / Meta Cloud API) and styled multi-tab Excel workbooks.", bullet_style))
-
     story.append(Spacer(1, 10))
 
     # =========================================================================
-    # 2. 6-STAGE LANGGRAPH PIPELINE WORKFLOW
+    # 1. MASTER WORKFLOW & PIPELINE ARCHITECTURE
     # =========================================================================
-    story.append(Paragraph("2. 6-Stage LangGraph Pipeline Workflow", h1_style))
+    story.append(Paragraph("1. Master Workflow & Pipeline Architecture", h1_style))
     story.append(Paragraph(
-        "The pipeline is implemented as a deterministic <b>LangGraph StateGraph</b>. The agent state passes sequentially through 6 specialized nodes:",
+        "The system follows a strict, non-bypassable sequential pipeline from multi-channel discovery to telemetry dispatch. "
+        "Every job must pass through each validation gate before reaching the application stage:",
         body_style
     ))
 
-    pipeline_nodes = [
-        [
-            Paragraph("<b>Stage & Node</b>", table_header),
-            Paragraph("<b>Primary Responsibilities</b>", table_header),
-            Paragraph("<b>Outputs & Artifacts</b>", table_header),
-        ],
-        [
-            Paragraph("<b>Node 1: Ingestion</b><br/><code>fetch_node</code>", table_cell),
-            Paragraph("• Concurrently polls 16 job connectors.<br/>• Extracts title, company, location, JD, and URL.<br/>• SQLite SHA-256 deduplication against past runs.", table_cell),
-            Paragraph("• <code>raw_jobs</code> list<br/>• <code>new_jobs_count</code><br/>• Saved in SQLite DB", table_cell),
-        ],
-        [
-            Paragraph("<b>Node 2: AI Scoring</b><br/><code>score_node</code>", table_cell),
-            Paragraph("• <b>Stage 1:</b> Heuristic pre-scoring & 0-2 yrs hard guard.<br/>• <b>Stage 2:</b> Gemini AI semantic scoring (0-100).<br/>• Evaluates skill overlap, experience fit, and role match.", table_cell),
-            Paragraph("• <code>scored_jobs</code> list<br/>• <code>qualified_job_ids</code><br/>• Match score (0-100)", table_cell),
-        ],
-        [
-            Paragraph("<b>Node 3: ATS Resume</b><br/><code>resume_node</code>", table_cell),
-            Paragraph("• Extracts tech keywords from target job description.<br/>• Gemini tailors summary, skill badges, and bullet points.<br/>• Builds ATS single-page PDF via ReportLab Platypus.", table_cell),
-            Paragraph("• <code>resume_paths</code> map<br/>• Tailored PDF in <code>resumes/</code>", table_cell),
-        ],
-        [
-            Paragraph("<b>Node 4: Apply Engine</b><br/><code>apply_node</code>", table_cell),
-            Paragraph("• Evaluates Source-Aware 3-Mode policy.<br/>• Executes Mode 1 API, Mode 2 Persistent Browser, or Mode 3 HR Email.<br/>• Prepares 1-click link for anti-bot aggregator portals.", table_cell),
-            Paragraph("• <code>direct_applied</code> count<br/>• <code>emails_sent</code> count<br/>• DB status: <code>APPLIED</code>", table_cell),
-        ],
-        [
-            Paragraph("<b>Node 5: WhatsApp</b><br/><code>notify_node</code>", table_cell),
-            Paragraph("• Formats clean daily WhatsApp summary.<br/>• Sends top-3 job match alerts with scores & links.<br/>• Supports CallMeBot free instant API & Meta Cloud API.", table_cell),
-            Paragraph("• WhatsApp message delivered<br/>• <code>whatsapp_sent=True</code>", table_cell),
-        ],
-        [
-            Paragraph("<b>Node 6: Reporting</b><br/><code>report_node</code>", table_cell),
-            Paragraph("• Compiles multi-tab Excel workbook via <code>openpyxl</code>.<br/>• Tabs: <i>All Discovered</i>, <i>Qualified Matches</i>, <i>Applications</i>.<br/>• Saves daily report with clickable direct URLs.", table_cell),
-            Paragraph("• <code>JobReport_YYYY-MM-DD.xlsx</code><br/>• Stored in <code>reports/</code>", table_cell),
-        ],
-    ]
+    flow_diagram = """
+                       ┌────────────────────────────────────────────────┐
+                       │                  AI JOB AGENT                  │
+                       └───────────────────────┬────────────────────────┘
+                                               │
+                                               ▼
+                       ┌────────────────────────────────────────────────┐
+                       │                 SEARCH MANAGER                 │
+                       │    (Reads config/job_sources.yml Registry)     │
+                       └───────┬───────────────┬────────────────┬───────┘
+                               │               │                │
+            ┌──────────────────┴──┐   ┌────────┴────────┐  ┌────┴─────────────────┐
+            │ GLOBAL REMOTE JOBS  │   │   INDIAN JOBS   │  │ RECRUITER POSTS (HR) │
+            │ (Jobicy, Remotive,  │   │ (Adzuna, Naukri,│  │ (LinkedIn Posts,     │
+            │  YC, Wellfound, ATS)│   │  Foundit, Shine)│  │  HackerNews Threads) │
+            └──────────────────┬──┘   └────────┬────────┘  └────┬─────────────────┘
+                               └───────────────┼────────────────┘
+                                               ▼
+                       ┌────────────────────────────────────────────────┐
+                       │          JOB NORMALIZER & DEDUPLICATOR         │
+                       │ (Builds Unified JobData & SQLite SHA-256 Check)│
+                       └───────────────────────┬────────────────────────┘
+                                               ▼
+                       ┌────────────────────────────────────────────────┐
+                       │       TODAY & FRESHNESS FILTER (0-24 Hrs)      │
+                       └───────────────────────┬────────────────────────┘
+                                               ▼
+                       ┌────────────────────────────────────────────────┐
+                       │  EXPERIENCE ANALYZER (Strict 0-2 Years ONLY)   │
+                       │ (Hard-Blocks >=3 Yrs & Senior/Lead/Mgr Titles) │
+                       └───────────────────────┬────────────────────────┘
+                                               ▼
+                       ┌────────────────────────────────────────────────┐
+                       │     2-TIER SCORER: ROLE & SKILL AI MATCHER     │
+                       │   (30% Role + 25% Exp + 25% Skill + 20% Fit)   │
+                       └───────────────────────┬────────────────────────┘
+                                               ▼
+                       ┌────────────────────────────────────────────────┐
+                       │           QUALIFIED MATCHES (Score >= 65)      │
+                       └───────┬────────────────────────────────┬───────┘
+                               │                                │
+            ┌──────────────────┴──┐                   ┌─────────┴─────────────┐
+            │   NORMAL JOB POST   │                   │ RECRUITER POST (EMAIL)│
+            └──────────┬──────────┘                   └─────────┬─────────────┘
+                       │                                        │
+                       │ ┌────────────────────────────────────┐ │
+                       └─► DYNAMIC ATS RESUME PDF TAILORING   ◄─┘
+                         └─────────────────┬──────────────────┘
+                                           │
+                         ┌─────────────────┴──────────────────┐
+                         │   SOURCE-AWARE APPLICATION ENGINE  │
+                         └─┬───────────────┬────────────────┬─┘
+                           │               │                │
+            ┌──────────────┴───┐ ┌─────────┴────────┐ ┌─────┴───────────────┐
+            │ 🟢 MODE 1:       │ │ 🟡 MODE 2:       │ │ ✉️ MODE 3:          │
+            │ DIRECT ATS API   │ │ PLAYWRIGHT       │ │ VERIFIED RECRUITER  │
+            │ (Greenhouse/Lever│ │ PERSISTENT       │ │ EMAIL OUTREACH      │
+            │  /Ashby Submit)  │ │ BROWSER AUTO-FILL│ │ (Gmail API OAuth)   │
+            └──────────────────┘ └──────────────────┘ └─────────────────────┘
+                                           │
+                                           ▼
+                       ┌────────────────────────────────────────────────┐
+                       │            MULTI-CHANNEL TELEMETRY             │
+                       │  • WhatsApp Daily Report & Top Match Alerts    │
+                       │  • Multi-Tab Excel Workbook (openpyxl)         │
+                       │  • Email Application Tracking Log              │
+                       └────────────────────────────────────────────────┘
+    """
 
-    pipeline_table = Table(pipeline_nodes, colWidths=[110, 244, 150])
-    pipeline_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), PRIMARY),
+    flow_table = Table([[Paragraph(f"<pre>{flow_diagram}</pre>", code_style)]], colWidths=[504])
+    flow_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
         ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BG]),
     ]))
-    story.append(pipeline_table)
+    story.append(flow_table)
 
     story.append(PageBreak())
 
     # =========================================================================
-    # 3. 16 JOB CONNECTORS & INGESTION ARCHITECTURE
+    # 2. SOURCE CONFIGURATION YAML & CONNECTOR REGISTRY
     # =========================================================================
-    story.append(Paragraph("3. 16 Active Job Connectors & Ingestion Layer", h1_style))
+    story.append(Paragraph("2. Dynamic Source Configuration (job_sources.yml)", h1_style))
     story.append(Paragraph(
-        "The agent integrates with 16 distinct connectors managed by a centralized <code>ConnectorManager</code>. "
-        "Connectors execute asynchronously with error isolation — if a single third-party endpoint fails or rate-limits, "
-        "the remaining 15 connectors continue uninterrupted.",
+        "Instead of hardcoding source logic in Python, the agent loads <code>app/config/job_sources.yml</code> at runtime. "
+        "Sources can be toggled on/off and prioritized dynamically without code modifications:",
         body_style
     ))
 
-    connectors_data = [
+    yml_sample = """# app/config/job_sources.yml
+sources:
+  greenhouse:      { enabled: true, type: career_page,    priority: high }
+  lever:           { enabled: true, type: career_page,    priority: high }
+  ashby:           { enabled: true, type: career_page,    priority: high }
+  workday:         { enabled: true, type: career_page,    priority: high }
+  smartrecruiters: { enabled: true, type: career_page,    priority: high }
+  jobicy:          { enabled: true, type: remote,         priority: high }
+  remotive:        { enabled: true, type: remote,         priority: high }
+  himalayas:       { enabled: true, type: remote,         priority: high }
+  adzuna:          { enabled: true, type: job_board,      priority: high }
+  agent_reach:     { enabled: true, type: recruiter_post, priority: high }
+  linkedin_posts:  { enabled: true, type: recruiter_post, priority: high }
+  ycombinator:     { enabled: true, type: remote,         priority: high }
+  wellfound:       { enabled: true, type: remote,         priority: high }
+  arbeitnow:       { enabled: true, type: remote,         priority: medium }
+  weworkremotely:  { enabled: true, type: remote,         priority: medium }
+  remoteok:        { enabled: true, type: remote,         priority: medium }
+"""
+
+    yml_table = Table([[Paragraph(f"<pre>{yml_sample}</pre>", code_style)]], colWidths=[504])
+    yml_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
+        ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(yml_table)
+    story.append(Spacer(1, 8))
+
+    # =========================================================================
+    # 3. EXPERIENCE ANALYZER & WEIGHTED SCORING ENGINE
+    # =========================================================================
+    story.append(Paragraph("3. ExperienceAnalyzer & Weighted Multi-Dimensional Scoring", h1_style))
+    story.append(Paragraph(
+        "<b>Dedicated ExperienceAnalyzer (Strict 0-2 Years Target):</b><br/>"
+        "The <code>ExperienceAnalyzer</code> inspects both the job title and full description. Any role requiring 3+ years, 4+ years, "
+        "or ranges like 3–5 yrs / 2–4 yrs is rejected immediately before resume tailoring or application.",
+        body_style
+    ))
+
+    exp_matrix = [
         [
-            Paragraph("<b>Connector Name</b>", table_header),
-            Paragraph("<b>Source / Portal</b>", table_header),
-            Paragraph("<b>Type & Protocol</b>", table_header),
-            Paragraph("<b>Target Domain</b>", table_header),
+            Paragraph("<b>Requirement Pattern</b>", table_header),
+            Paragraph("<b>Extracted Min / Max</b>", table_header),
+            Paragraph("<b>Pipeline Action</b>", table_header),
+            Paragraph("<b>Rationale & Behavior</b>", table_header),
         ],
         [
-            Paragraph("<code>GreenhouseConnector</code>", table_cell),
-            Paragraph("Greenhouse Enterprise ATS", table_cell),
-            Paragraph("Public REST API (JSON)", table_cell),
-            Paragraph("Airbnb, Stripe, Brex, Discord, Figma", table_cell),
+            Paragraph("<code>Fresher / Entry / 0-2 yrs</code>", table_cell),
+            Paragraph("Min: 0.0, Max: 2.0", table_cell),
+            Paragraph("<font color='#2F855A'><b>PASS (Eligible)</b></font>", table_cell),
+            Paragraph("Perfect target match. Advances to AI semantic scoring.", table_cell),
         ],
         [
-            Paragraph("<code>LeverConnector</code>", table_cell),
-            Paragraph("Lever Enterprise ATS", table_cell),
-            Paragraph("Public REST API (JSON)", table_cell),
-            Paragraph("Netflix, Spotify, Wealthsimple", table_cell),
+            Paragraph("<code>1-2 years / 2 years</code>", table_cell),
+            Paragraph("Min: 1.0, Max: 2.0", table_cell),
+            Paragraph("<font color='#2F855A'><b>PASS (Eligible)</b></font>", table_cell),
+            Paragraph("Within candidate's 0-2 years background.", table_cell),
         ],
         [
-            Paragraph("<code>AshbyConnector</code>", table_cell),
-            Paragraph("Ashby Modern ATS", table_cell),
-            Paragraph("Posting REST API", table_cell),
-            Paragraph("Linear, Supabase, Retool, Vercel", table_cell),
+            Paragraph("<code>2-4 years / 2-5 years</code>", table_cell),
+            Paragraph("Min: 2.0, Max: 4.0+", table_cell),
+            Paragraph("<font color='#C53030'><b>HARD REJECT</b></font>", table_cell),
+            Paragraph("Exceeds 2-year upper threshold.", table_cell),
         ],
         [
-            Paragraph("<code>WorkdayConnector</code>", table_cell),
-            Paragraph("Workday CXS Portal", table_cell),
-            Paragraph("CXS Search API / HTTP", table_cell),
-            Paragraph("Walmart, Target, Flipkart, Adobe", table_cell),
+            Paragraph("<code>3+ years / 3-5 years</code>", table_cell),
+            Paragraph("Min: 3.0, Max: 5.0", table_cell),
+            Paragraph("<font color='#C53030'><b>HARD REJECT</b></font>", table_cell),
+            Paragraph("Experienced tier. Hard-blocked before LLM.", table_cell),
         ],
         [
-            Paragraph("<code>SmartRecruitersConnector</code>", table_cell),
-            Paragraph("SmartRecruiters ATS", table_cell),
-            Paragraph("REST API", table_cell),
-            Paragraph("Freshworks, Visa, Bosch", table_cell),
-        ],
-        [
-            Paragraph("<code>JobicyConnector</code>", table_cell),
-            Paragraph("Jobicy Remote Jobs", table_cell),
-            Paragraph("Public Jobs API", table_cell),
-            Paragraph("Global Remote Software & AI Roles", table_cell),
-        ],
-        [
-            Paragraph("<code>RemotiveConnector</code>", table_cell),
-            Paragraph("Remotive Software API", table_cell),
-            Paragraph("Public Category API", table_cell),
-            Paragraph("Backend, Cloud & AI Engineering", table_cell),
-        ],
-        [
-            Paragraph("<code>HimalayasConnector</code>", table_cell),
-            Paragraph("Himalayas Remote", table_cell),
-            Paragraph("Public REST API", table_cell),
-            Paragraph("Modern Tech Startups & Scaleups", table_cell),
-        ],
-        [
-            Paragraph("<code>AdzunaConnector</code>", table_cell),
-            Paragraph("Adzuna India & Global", table_cell),
-            Paragraph("Developer REST API", table_cell),
-            Paragraph("India Tech Market (Java/Python/AI)", table_cell),
-        ],
-        [
-            Paragraph("<code>AgentReachConnector</code>", table_cell),
-            Paragraph("Agent Reach LinkedIn", table_cell),
-            Paragraph("CLI / Headless Protocol", table_cell),
-            Paragraph("LinkedIn Posts & Direct Roles", table_cell),
-        ],
-        [
-            Paragraph("<code>LinkedInPostsConnector</code>", table_cell),
-            Paragraph("LinkedIn Hiring Posts", table_cell),
-            Paragraph("Direct HR Post Scraper", table_cell),
-            Paragraph("Recruiter Cold Hiring Posts", table_cell),
-        ],
-        [
-            Paragraph("<code>YCombinatorConnector</code>", table_cell),
-            Paragraph("WorkAtAStartup / YC", table_cell),
-            Paragraph("HackerNews Algolia API", table_cell),
-            Paragraph("YC Backed High-Growth Startups", table_cell),
-        ],
-        [
-            Paragraph("<code>WellfoundConnector</code>", table_cell),
-            Paragraph("Wellfound (AngelList)", table_cell),
-            Paragraph("Public RSS / Discovery", table_cell),
-            Paragraph("Early-Stage & Seed AI Startups", table_cell),
-        ],
-        [
-            Paragraph("<code>ArbeitnowConnector</code>", table_cell),
-            Paragraph("Arbeitnow Tech", table_cell),
-            Paragraph("REST API", table_cell),
-            Paragraph("European & Remote Tech Roles", table_cell),
-        ],
-        [
-            Paragraph("<code>WeWorkRemotelyConnector</code>", table_cell),
-            Paragraph("We Work Remotely", table_cell),
-            Paragraph("RSS & JSON Feed", table_cell),
-            Paragraph("Remote Backend & Systems Roles", table_cell),
-        ],
-        [
-            Paragraph("<code>RemoteOKConnector</code>", table_cell),
-            Paragraph("RemoteOK", table_cell),
-            Paragraph("Public REST API", table_cell),
-            Paragraph("Global Remote Tech & Fullstack", table_cell),
+            Paragraph("<code>Senior / Staff / Lead / Mgr</code>", table_cell),
+            Paragraph("Seniority Keyword", table_cell),
+            Paragraph("<font color='#C53030'><b>HARD REJECT</b></font>", table_cell),
+            Paragraph("Senior title guard triggered. Score set to 0.", table_cell),
         ],
     ]
 
-    conn_table = Table(connectors_data, colWidths=[130, 114, 110, 150])
-    conn_table.setStyle(TableStyle([
+    exp_table = Table(exp_matrix, colWidths=[120, 100, 100, 184])
+    exp_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), SECONDARY),
         ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
@@ -420,277 +403,163 @@ def build_pdf(filename: str):
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BG]),
     ]))
-    story.append(conn_table)
+    story.append(exp_table)
+    story.append(Spacer(1, 8))
 
-    story.append(Spacer(1, 10))
+    story.append(Paragraph("<b>Multi-Dimensional Scoring Formula:</b>", body_bold))
+    story.append(Paragraph("$$\\text{Overall Score} = (30\\% \\times \\text{Role Match}) + (25\\% \\times \\text{Experience Match}) + (25\\% \\times \\text{Skill Match}) + (10\\% \\times \\text{Location Match}) + (10\\% \\times \\text{Freshness Quality})$$", code_style))
+
+    story.append(PageBreak())
 
     # =========================================================================
-    # 4. SOURCE-AWARE 3-MODE APPLICATION POLICY & EXPERIENCE GUARD
+    # 4. SOURCE-AWARE 3-MODE APPLICATION & RESUME TAILORING
     # =========================================================================
-    story.append(Paragraph("4. Source-Aware Application Policy & Experience Guard", h1_style))
+    story.append(Paragraph("4. Source-Aware Application Engine & Dynamic ATS Resumes", h1_style))
     story.append(Paragraph(
-        "The agent implements a <b>Source-Aware Multi-Mode Application Architecture</b> to interact appropriately with each portal type:",
+        "<b>100% Unique Dynamic ATS Resumes:</b><br/>"
+        "For every qualifying job (Score ≥ 65), Gemini extracts key technologies and tailors the summary, skill badges, and "
+        "work accomplishments. ReportLab Platypus builds a pixel-perfect, 1-page ATS compliant PDF saved to <code>resumes/</code>.",
         body_style
     ))
 
     modes_data = [
         [
-            Paragraph("<b>Mode</b>", table_header),
-            Paragraph("<b>Strategy & Channel</b>", table_header),
-            Paragraph("<b>Supported Platforms</b>", table_header),
-            Paragraph("<b>Behavior & Automation Logic</b>", table_header),
+            Paragraph("<b>Application Mode</b>", table_header),
+            Paragraph("<b>Target Portals</b>", table_header),
+            Paragraph("<b>Execution Strategy & Safety Rules</b>", table_header),
         ],
         [
-            Paragraph("<b>🟢 Mode 1</b><br/>Direct API", table_cell),
-            Paragraph("Programmatic ATS Form Submission", table_cell),
+            Paragraph("<b>🟢 Mode 1: Direct API</b>", table_cell),
             Paragraph("Greenhouse, Lever, Ashby", table_cell),
-            Paragraph("Submits multipart/form-data with candidate profile, questions, and tailored ATS resume PDF directly via official API.", table_cell),
+            Paragraph("Programmatic multipart form submission via official job board APIs with tailored ATS resume attached.", table_cell),
         ],
         [
-            Paragraph("<b>🟡 Mode 2</b><br/>Persistent Browser", table_cell),
-            Paragraph("Playwright Persistent Context", table_cell),
-            Paragraph("Wellfound, YCombinator, LinkedIn, Workday, Jobicy", table_cell),
-            Paragraph("Reuses authenticated local browser profile (<code>data/browser_profile</code>). Auto-fills forms, uploads resume PDF, and auto-submits without password leakage.", table_cell),
+            Paragraph("<b>🟡 Mode 2: Persistent Browser</b>", table_cell),
+            Paragraph("Wellfound, YC, LinkedIn, Workday, Jobicy", table_cell),
+            Paragraph("Playwright Chromium reuses authenticated session profile (<code>data/browser_profile</code>). Auto-fills forms and uploads tailored resume without password leakage.", table_cell),
         ],
         [
-            Paragraph("<b>✉️ Mode 3</b><br/>Verified HR Email", table_cell),
-            Paragraph("Direct Recruiter Outreach via Gmail API", table_cell),
-            Paragraph("LinkedIn Posts, HackerNews hiring threads", table_cell),
-            Paragraph("<b>Zero Bounce Policy:</b> Sends cold application ONLY when an explicit recruiter email is parsed from the post. Never guesses synthetic addresses.", table_cell),
+            Paragraph("<b>✉️ Mode 3: Verified HR Email</b>", table_cell),
+            Paragraph("LinkedIn Posts, HackerNews Hiring", table_cell),
+            Paragraph("<b>Zero Bounce Policy:</b> Sends cold email outreach ONLY to explicit recruiter emails extracted from post text. Never guesses synthetic addresses.", table_cell),
         ],
         [
-            Paragraph("<b>🔴 Mode 4</b><br/>1-Click Link Prep", table_cell),
-            Paragraph("Custom Resume & Direct Link Preparation", table_cell),
+            Paragraph("<b>🔴 Mode 4: 1-Click Link Prep</b>", table_cell),
             Paragraph("Adzuna, Hirist, Shine, Cutshort, Foundit", table_cell),
-            Paragraph("Generates custom ATS resume PDF, drafts cover note, and formats 1-click direct application link in the daily Excel report.", table_cell),
+            Paragraph("Prepares custom ATS PDF resume + cover note and formats 1-click direct link in Excel report for anti-bot portals.", table_cell),
         ],
     ]
 
-    modes_table = Table(modes_data, colWidths=[70, 110, 120, 204])
+    modes_table = Table(modes_data, colWidths=[120, 130, 254])
     modes_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), PRIMARY),
         ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
         ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 5),
         ('RIGHTPADDING', (0, 0), (-1, -1), 5),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BG]),
     ]))
     story.append(modes_table)
 
-    story.append(Spacer(1, 8))
-    story.append(Paragraph("<b>Strict Match Score Policy:</b>", body_bold))
-    story.append(Paragraph("• <b>Score ≥ 85:</b> <code>AUTO_APPLY</code> — Programmatic submission via Mode 1 (API) or Mode 2 (Persistent Browser).", bullet_style))
-    story.append(Paragraph("• <b>Score 75–84:</b> <code>REVIEW_REQUIRED</code> — Custom ATS resume PDF generated + draft saved for 1-click submission.", bullet_style))
-    story.append(Paragraph("• <b>Score 65–74:</b> <code>SAVE_LINK</code> — Job details, cover letter draft, and direct URL saved in Excel report.", bullet_style))
-    story.append(Paragraph("• <b>Score &lt; 65:</b> <code>SKIP</code> — Discarded from scoring queue.", bullet_style))
-
-    story.append(PageBreak())
+    story.append(Spacer(1, 10))
 
     # =========================================================================
-    # 5. COMPLETE DIRECTORY & CODEBASE STRUCTURE
+    # 5. COMPLETE DIRECTORY STRUCTURE
     # =========================================================================
-    story.append(Paragraph("5. Complete Project Directory & Codebase Structure", h1_style))
+    story.append(Paragraph("5. Production Codebase Directory Structure", h1_style))
     story.append(Paragraph(
-        "Below is the complete file tree and architectural module map of the <code>AI-Job-Agent</code> codebase:",
+        "Complete clean directory layout of the repository:",
         body_style
     ))
 
-    tree_text = """AI-Job-Agent/
+    clean_tree = """AI-Job-Agent/
 ├── app/
-│   ├── agents/                   # LangGraph StateGraph & Node Orchestrators
-│   │   ├── __init__.py           # Agent package exports
+│   ├── agents/                   # LangGraph Workflow Orchestrators
 │   │   ├── nodes.py              # 6 Pipeline Nodes (fetch, score, resume, apply, notify, report)
-│   │   ├── orchestrator.py       # LangGraph StateGraph compilation & execution graph
-│   │   └── state.py              # AgentState TypedDict schema definition
-│   ├── config/                   # Centralized Configuration & Environment Settings
-│   │   ├── __init__.py           # Config exports
-│   │   └── settings.py           # Environment variables, candidate profile, score thresholds
-│   ├── connectors/               # 16 Job Search Ingestion Connectors
-│   │   ├── __init__.py           # Connector package registry
-│   │   ├── base.py               # BaseConnector abstract class interface
-│   │   ├── manager.py            # ConnectorManager concurrent aggregator
-│   │   ├── registry.py           # Connector auto-discovery decorator
-│   │   ├── greenhouse_connector.py # Greenhouse ATS REST API connector
-│   │   ├── lever_connector.py      # Lever ATS REST API connector
-│   │   ├── ashby_connector.py      # Ashby ATS REST API connector
-│   │   ├── workday_connector.py    # Workday CXS Search API connector
-│   │   ├── smartrecruiters_connector.py # SmartRecruiters ATS connector
-│   │   ├── jobicy_connector.py     # Jobicy Remote Jobs API connector
-│   │   ├── remotive_connector.py   # Remotive Software Jobs API connector
-│   │   ├── himalayas_connector.py  # Himalayas Remote API connector
-│   │   ├── adzuna_connector.py     # Adzuna Developer Jobs API connector
+│   │   ├── orchestrator.py       # LangGraph StateGraph compilation
+│   │   └── state.py              # AgentState TypedDict schema
+│   ├── config/                   # Central Configuration & Source Settings
+│   │   ├── job_sources.yml       # YAML source enable/disable & priority config
+│   │   └── settings.py           # Environment variables & candidate profile
+│   ├── connectors/               # 16 Active Job Ingestion Connectors
+│   │   ├── base.py               # BaseConnector abstract interface
+│   │   ├── manager.py            # SearchManager concurrent executor
+│   │   ├── registry.py           # Connector discovery decorator
+│   │   ├── greenhouse_connector.py # Greenhouse ATS API
+│   │   ├── lever_connector.py      # Lever ATS API
+│   │   ├── ashby_connector.py      # Ashby ATS API
+│   │   ├── workday_connector.py    # Workday CXS Portal
+│   │   ├── smartrecruiters_connector.py # SmartRecruiters API
+│   │   ├── jobicy_connector.py     # Jobicy Remote API
+│   │   ├── remotive_connector.py   # Remotive Software API
+│   │   ├── himalayas_connector.py  # Himalayas Remote API
+│   │   ├── adzuna_connector.py     # Adzuna Jobs API
 │   │   ├── agent_reach_connector.py # Agent Reach LinkedIn scraper
-│   │   ├── linkedin_posts_connector.py # LinkedIn Recruiter Hiring Posts parser
-│   │   ├── ycombinator_connector.py # HackerNews / YC Who is Hiring Algolia API
-│   │   ├── wellfound_connector.py  # Wellfound (AngelList Talent) connector
-│   │   ├── arbeitnow_connector.py  # Arbeitnow Tech Jobs API connector
-│   │   └── weworkremotely_connector.py # WeWorkRemotely RSS feed connector
-│   ├── db/                       # Database Storage & Repository Layer
-│   │   ├── __init__.py           # DB models & session exports
-│   │   ├── models.py             # SQLAlchemy ORM models (Job, Application, Resume, RunLog)
-│   │   └── session.py            # SQLite engine & scoped session factory (jobs.db)
-│   ├── prompts/                  # LLM Prompt Templates & System Personas
-│   │   ├── __init__.py           # Prompts package
-│   │   ├── email_prompt.py       # Cold outreach email generation prompt
+│   │   ├── linkedin_posts_connector.py # LinkedIn Hiring Posts parser
+│   │   ├── ycombinator_connector.py # HackerNews / YC Algolia API
+│   │   ├── wellfound_connector.py  # Wellfound AI Startups
+│   │   ├── arbeitnow_connector.py  # Arbeitnow Tech API
+│   │   └── weworkremotely_connector.py # WeWorkRemotely RSS
+│   ├── db/                       # Database Storage Layer
+│   │   ├── models.py             # SQLAlchemy ORM models (Job, Application, Resume)
+│   │   └── session.py            # SQLite engine (jobs.db)
+│   ├── prompts/                  # LLM System Personas & Prompts
+│   │   ├── email_prompt.py       # Cold outreach email prompt
 │   │   ├── resume_prompt.py      # Dynamic ATS resume tailoring prompt
-│   │   └── scoring_prompt.py     # Strict 0-2 yrs technical job scoring prompt
-│   ├── schemas/                  # Pydantic Schemas & Data Transfer Objects
-│   │   ├── __init__.py           # Schemas package
-│   │   ├── application.py        # Application status & tracking schema
+│   │   └── scoring_prompt.py     # Strict 0-2 yrs technical scoring prompt
+│   ├── schemas/                  # Data Transfer Objects
+│   │   ├── application.py        # Application status schema
 │   │   └── job_data.py           # Unified JobData dataclass
-│   ├── services/                 # Core Business Logic & AI Services
-│   │   ├── __init__.py           # Services package exports
-│   │   ├── application_policy.py # Source-Aware 3-Mode Application Strategy Manager
-│   │   ├── apply_service.py      # Application submission cascade & routing service
-│   │   ├── browser_apply_service.py # Playwright Chromium persistent browser auto-apply
-│   │   ├── email_service.py      # Gmail API OAuth2 cold outreach sender
-│   │   ├── mock_scoring_service.py # Heuristic pre-filter & keyword scoring engine
-│   │   ├── report_service.py     # openpyxl multi-tab Excel report generator
-│   │   ├── resume_service.py     # Dynamic ATS 1-page PDF builder (ReportLab Platypus)
-│   │   ├── scheduler_service.py  # APScheduler 24/7 fixed 6-hour cron service
-│   │   ├── scoring_service.py    # Google Gemini AI LLM semantic scoring service
-│   │   └── whatsapp_service.py   # CallMeBot & Meta Cloud WhatsApp alert service
-│   └── utils/                    # Shared Helper Functions & Validators
-│       ├── __init__.py           # Utils package
-│       ├── email_validator.py    # Explicit HR email regex parser & DNS validator
-│       ├── experience_filter.py  # Strict 0-2 years experience & senior title hard-guard
-│       └── gemini_client.py      # Resilient Gemini API client with auto-retry
+│   ├── services/                 # Core Business Logic
+│   │   ├── application_policy.py # Source-Aware 3-Mode Policy Manager
+│   │   ├── apply_service.py      # Application routing & submission
+│   │   ├── browser_apply_service.py # Playwright Chromium persistent browser engine
+│   │   ├── email_service.py      # Gmail API OAuth2 sender
+│   │   ├── mock_scoring_service.py # Heuristic pre-filter engine
+│   │   ├── report_service.py     # openpyxl multi-tab Excel generator
+│   │   ├── resume_service.py     # Dynamic ATS 1-page PDF builder
+│   │   ├── scheduler_service.py  # APScheduler 24/7 6-hour cron service
+│   │   ├── scoring_service.py    # Gemini AI semantic scoring
+│   │   └── whatsapp_service.py   # CallMeBot & Meta WhatsApp alerts
+│   └── utils/                    # Validators & Helper Utilities
+│       ├── email_validator.py    # Explicit HR email parser & DNS validator
+│       ├── experience_analyzer.py # Dedicated 0-2 yrs ExperienceAnalyzer
+│       ├── experience_filter.py  # Senior title & experience hard guard
+│       └── gemini_client.py      # Resilient Gemini client with retry
 ├── data/                         # Persistent Storage & Browser Profiles
-│   ├── browser_profile/          # Playwright persistent Chromium context & cookies
+│   ├── browser_profile/          # Playwright persistent Chromium session & cookies
 │   └── jobs.db                   # SQLite primary database
 ├── docs/                         # Architecture Documentation & PDF Blueprints
-├── reports/                      # Daily Excel Workbooks (JobReport_YYYY-MM-DD.xlsx)
-├── resumes/                      # Master Resume & Tailored ATS PDF Resumes
-│   └── Kamal_Kumar_Java_AI_Developer_ATS.pdf # Candidate Master Resume
-├── scripts/                      # Diagnostic, Testing, & Execution Tools
+│   └── AI_Job_Agent_Architecture_and_Workflow.pdf
+├── reports/                      # Daily Multi-Tab Excel Reports
+├── resumes/                      # Master & Tailored ATS PDF Resumes
+├── scripts/                      # Operational Scripts & Tools
 │   ├── run_agent.py              # CLI runner for single pipeline execution
 │   ├── test_browser_apply.py     # Live visible browser auto-apply tester
 │   ├── setup_gmail_token.py      # Gmail OAuth2 token generator
 │   ├── setup_whatsapp.py         # WhatsApp CallMeBot diagnostic tool
-│   └── generate_architecture_pdf.py # Architecture blueprint PDF generator
-├── main.py                       # FastAPI 24/7 Web Server & Background Scheduler Entrypoint
+│   └── generate_architecture_pdf.py # Architecture PDF builder
+├── main.py                       # FastAPI 24/7 Server & Background Scheduler Entrypoint
 ├── requirements.txt              # Production Python dependencies
 └── .env                          # Configuration & API Credentials
 """
 
-    tree_table = Table([[Paragraph(f"<pre>{tree_text}</pre>", code_style)]], colWidths=[504])
+    tree_table = Table([[Paragraph(f"<pre>{clean_tree}</pre>", code_style)]], colWidths=[504])
     tree_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
         ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
     ]))
     story.append(tree_table)
 
-    story.append(PageBreak())
-
-    # =========================================================================
-    # 6. SERVER LIFECYCLE & 24/7 OPERATION
-    # =========================================================================
-    story.append(Paragraph("6. Server Lifecycle, Scheduling, & API Endpoints", h1_style))
-    story.append(Paragraph(
-        "The application runs 24/7 as a <b>FastAPI service</b> with an embedded <b>APScheduler</b> background engine. "
-        "It provides complete observability through REST API endpoints and automatic periodic executions.",
-        body_style
-    ))
-
-    api_endpoints = [
-        [
-            Paragraph("<b>HTTP Method & Endpoint</b>", table_header),
-            Paragraph("<b>Description & Functionality</b>", table_header),
-            Paragraph("<b>Sample Response / Action</b>", table_header),
-        ],
-        [
-            Paragraph("<code>GET /</code>", table_cell),
-            Paragraph("System health check, version, and scheduler status.", table_cell),
-            Paragraph("<code>{'status': 'running', 'scheduler': True}</code>", table_cell),
-        ],
-        [
-            Paragraph("<code>POST /agent/run</code>", table_cell),
-            Paragraph("Triggers an immediate background run across all 16 connectors.", table_cell),
-            Paragraph("<code>{'status': 'started', 'run_id': '41fee100'}</code>", table_cell),
-        ],
-        [
-            Paragraph("<code>GET /agent/status</code>", table_cell),
-            Paragraph("Retrieves the execution status and statistics of the latest run.", table_cell),
-            Paragraph("<code>{'last_run_time': '...', 'jobs_found': 3539}</code>", table_cell),
-        ],
-        [
-            Paragraph("<code>GET /jobs/qualified</code>", table_cell),
-            Paragraph("Lists all qualified matches (score ≥ 65) matching 0-2 yrs target.", table_cell),
-            Paragraph("<code>[{'title': 'Java Dev', 'score': 85}, ...]</code>", table_cell),
-        ],
-        [
-            Paragraph("<code>GET /jobs/stats</code>", table_cell),
-            Paragraph("Summary statistics of discovered, scored, and applied jobs.", table_cell),
-            Paragraph("<code>{'total_jobs': 3539, 'applied': 12}</code>", table_cell),
-        ],
-        [
-            Paragraph("<code>GET /docs</code>", table_cell),
-            Paragraph("Interactive Swagger UI for testing API endpoints.", table_cell),
-            Paragraph("Interactive Web Interface", table_cell),
-        ],
-    ]
-
-    api_table = Table(api_endpoints, colWidths=[130, 210, 164])
-    api_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), PRIMARY),
-        ('BOX', (0, 0), (-1, -1), 1, BORDER_COLOR),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-        ('LEFTPADDING', (0, 0), (-1, -1), 5),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BG]),
-    ]))
-    story.append(api_table)
-
-    story.append(Spacer(1, 14))
-
-    # =========================================================================
-    # 7. SUMMARY & VALUE DELIVERED
-    # =========================================================================
-    story.append(Paragraph("7. Architectural Summary & Production Readiness", h1_style))
-    story.append(Paragraph(
-        "With this architecture, the <b>AI Job Agent</b> functions as an autonomous career assistant that discovers thousands of opportunities daily, "
-        "filters with strict 0–2 years precision, tailors ATS resumes on the fly, applies across multiple channels without password exposure, and keeps the candidate informed 24/7.",
-        body_style
-    ))
-
-    # Highlight Summary Box
-    summary_box_data = [
-        [
-            Paragraph("<b>✅ Multi-Source Discovery:</b> 16 integrated sources querying 3,500+ jobs per cycle.", table_cell),
-            Paragraph("<b>✅ 0-2 Years Precision:</b> Hard guards eliminate all &gt;2 yrs & senior roles.", table_cell),
-        ],
-        [
-            Paragraph("<b>✅ Zero Email Bounces:</b> Strictly emails explicit recruiter contacts from posts.", table_cell),
-            Paragraph("<b>✅ 100% Unique Resumes:</b> Tailored ATS single-page PDFs per application.", table_cell),
-        ],
-        [
-            Paragraph("<b>✅ Safe Browser Sessions:</b> Persistent cookies reuse without password leaks.", table_cell),
-            Paragraph("<b>✅ Daily Multi-Channel Alerts:</b> Automated WhatsApp alerts & Excel reports.", table_cell),
-        ]
-    ]
-    summary_table = Table(summary_box_data, colWidths=[252, 252])
-    summary_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
-        ('BOX', (0, 0), (-1, -1), 1, SECONDARY),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
-    ]))
-    story.append(summary_table)
-
     # Build PDF with NumberedCanvas
     doc.build(story, canvasmaker=NumberedCanvas)
-    print(f"✅ Architecture PDF successfully generated: {filename}")
+    print(f"✅ Master Architecture PDF successfully generated: {filename}")
 
 
 if __name__ == "__main__":

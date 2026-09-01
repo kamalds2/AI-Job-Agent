@@ -1,25 +1,99 @@
+# Centralized Job Sources Configuration
+# Enable or disable sources and set priorities dynamically without modifying Python code.
+
 sources:
-
-  remoteok:
+  greenhouse:
     enabled: true
-    connector: api
+    type: career_page
+    priority: high
+    description: "Greenhouse Enterprise ATS Job Boards (Stripe, Airbnb, Brex, Figma, Discord)"
 
-  wellfound:
+  lever:
     enabled: true
-    connector: html
+    type: career_page
+    priority: high
+    description: "Lever Enterprise ATS Postings (Spotify, Netflix, Wealthsimple)"
+
+  ashby:
+    enabled: true
+    type: career_page
+    priority: high
+    description: "Ashby Modern ATS Boards (Linear, Supabase, Retool, Vercel, Ramp)"
+
+  workday:
+    enabled: true
+    type: career_page
+    priority: high
+    description: "Workday Enterprise CXS Portals (Walmart, Target, Flipkart, Adobe)"
+
+  smartrecruiters:
+    enabled: true
+    type: career_page
+    priority: high
+    description: "SmartRecruiters ATS Portals (Freshworks, Visa, Bosch)"
+
+  jobicy:
+    enabled: true
+    type: remote
+    priority: high
+    description: "Jobicy Remote Jobs Public API"
+
+  remotive:
+    enabled: true
+    type: remote
+    priority: high
+    description: "Remotive Software Engineering Public API"
+
+  himalayas:
+    enabled: true
+    type: remote
+    priority: high
+    description: "Himalayas Remote Startup Jobs API"
+
+  adzuna:
+    enabled: true
+    type: job_board
+    priority: high
+    description: "Adzuna Developer Jobs API for India & Global"
+
+  agent_reach:
+    enabled: true
+    type: recruiter_post
+    priority: high
+    description: "Agent Reach CLI / LinkedIn Posts Connector"
+
+  linkedin_posts:
+    enabled: true
+    type: recruiter_post
+    priority: high
+    description: "Direct Recruiter Hiring Posts & Contact Emails"
 
   ycombinator:
     enabled: true
-    connector: html
+    type: remote
+    priority: high
+    description: "HackerNews Algolia API (Who is Hiring & YC Startups)"
 
-  linkedin:
-    enabled: false
-    connector: browser
+  wellfound:
+    enabled: true
+    type: remote
+    priority: high
+    description: "Wellfound (AngelList Talent) Early-Stage AI Startups"
 
-  naukri:
-    enabled: false
-    connector: browser
+  arbeitnow:
+    enabled: true
+    type: remote
+    priority: medium
+    description: "Arbeitnow European & Global Remote Tech API"
 
-  foundit:
-    enabled: false
-    connector: browser
+  weworkremotely:
+    enabled: true
+    type: remote
+    priority: medium
+    description: "We Work Remotely Backend & Cloud RSS Feeds"
+
+  remoteok:
+    enabled: true
+    type: remote
+    priority: medium
+    description: "RemoteOK Public Tech Jobs API"

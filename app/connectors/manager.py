@@ -61,16 +61,35 @@ class SearchManager:
             agent_reach_connector,
         )
 
-        logger.info(f"🔍 Starting search across {len(CONNECTORS)} connectors...")
+        # Load job sources configuration
+        import yaml
+        from pathlib import Path
+        config_path = Path("app/config/job_sources.yml")
+        enabled_sources = {}
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = yaml.safe_load(f)
+                    enabled_sources = cfg.get("sources", {})
+            except Exception as ye:
+                logger.warning(f"Could not load job_sources.yml: {ye}")
 
-        # Run all connectors concurrently
+        # Run active connectors concurrently
         tasks = []
         connector_names = []
 
         for name, connector_class in CONNECTORS.items():
+            # Check if source is enabled in config
+            src_cfg = enabled_sources.get(name, {})
+            if src_cfg and not src_cfg.get("enabled", True):
+                logger.info(f"⏭️ Skipping disabled connector: '{name}' (via job_sources.yml)")
+                continue
+
             connector = connector_class()
             tasks.append(self._run_connector(name, connector))
             connector_names.append(name)
+
+        logger.info(f"🔍 Starting concurrent search across {len(connector_names)} enabled connectors...")
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
