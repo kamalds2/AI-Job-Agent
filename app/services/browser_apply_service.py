@@ -99,8 +99,11 @@ class BrowserApplyService:
                 # Check for login prompts and perform auto-login if needed
                 await self._handle_portal_login(page)
 
-                # If on job board landing page with an "Apply" button, click it to open the form
-                await self._navigate_to_form(page)
+                # If on job board landing page with an "Apply" button or outbound link, navigate to target form
+                page = await self._navigate_to_form(page)
+
+                # Check for login prompts on target page
+                await self._handle_portal_login(page)
 
                 # Detect and fill the application form
                 filled = await self._fill_form(page, resume_pdf_path, cover_letter)
@@ -179,21 +182,43 @@ class BrowserApplyService:
             logger.debug(f"[Browser Login] Portal login check: {e}")
 
     async def _navigate_to_form(self, page: Page):
-        """Click 'Apply' or 'Apply for this job' button if the form is in a sub-section or modal."""
+        """Click 'Apply', 'Apply on company website', or 'Apply Now' button if the form is on an outbound portal or modal."""
         apply_selectors = [
-            "a[href*='#app']", "a[href*='apply']", "button:has-text('Apply')",
-            "button:has-text('Apply for this job')", "button:has-text('Apply Now')",
-            "a:has-text('Apply for this job')", "a:has-text('Apply Now')",
+            "a:has-text('Apply on company website' i)",
+            "a:has-text('Apply on website' i)",
+            "a:has-text('Apply on employer website' i)",
+            "a:has-text('Apply Now' i)",
+            "button:has-text('Apply Now' i)",
+            "a:has-text('Apply for this job' i)",
+            "button:has-text('Apply for this job' i)",
+            "a:has-text('Apply' i)",
+            "button:has-text('Apply' i)",
+            "a[href*='redirect' i]",
+            "a[href*='apply' i]",
+            "a[href*='#app']",
         ]
         for sel in apply_selectors:
             try:
                 elem = page.locator(sel).first
                 if await elem.is_visible():
-                    await elem.click()
-                    await page.wait_for_timeout(1500)
-                    break
+                    logger.info(f"👉 [Browser Apply] Clicking apply trigger button: '{sel}'")
+                    # If button opens a new tab/popup
+                    async with page.context.expect_page(timeout=5000) as new_page_info:
+                        await elem.click()
+                    new_page = await new_page_info.value
+                    await new_page.wait_for_load_state("domcontentloaded", timeout=15000)
+                    return new_page
             except Exception:
-                continue
+                try:
+                    # Fallback single click without popup
+                    elem = page.locator(sel).first
+                    if await elem.is_visible():
+                        await elem.click()
+                        await page.wait_for_timeout(2500)
+                        break
+                except Exception:
+                    continue
+        return page
 
     async def _fill_form(self, page: Page, resume_pdf_path: str, cover_letter: str) -> bool:
         """Fill all standard job application inputs."""

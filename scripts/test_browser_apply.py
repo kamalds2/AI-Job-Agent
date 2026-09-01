@@ -10,6 +10,11 @@ import asyncio
 import logging
 from pathlib import Path
 
+# Configure Windows UTF-8 console output
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
