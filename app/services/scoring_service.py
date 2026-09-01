@@ -308,32 +308,46 @@ class ScoringService:
         resume_text: str,
         threshold: int = 65,
     ) -> tuple[list[dict], list[int]]:
-        """Score a batch of jobs. Returns (scored_jobs, qualified_ids)."""
+        """Score a batch of jobs in parallel using ThreadPoolExecutor."""
+        import concurrent.futures
+
         scored_jobs: list[dict] = []
         qualified_ids: list[int] = []
 
-        for job in jobs:
-            result = self.score_job(
+        def _score_single(job: dict) -> dict:
+            res = self.score_job(
                 job_title=job.get("title", ""),
                 company=job.get("company", ""),
                 job_description=job.get("description", ""),
                 resume_text=resume_text,
             )
-            entry = {
+            return {
                 "job_id": job["id"],
                 "title": job.get("title"),
                 "company": job.get("company"),
                 "job_url": job.get("job_url"),
-                **result,
+                **res,
             }
-            scored_jobs.append(entry)
-            # Only qualify if score >= threshold AND experience_match is True AND recommended_action != 'SKIP'
-            if (
-                result["score"] >= threshold
-                and result.get("experience_match") is True
-                and result.get("recommended_action") in ("APPLY", "REVIEW")
-            ):
-                qualified_ids.append(job["id"])
+
+        # Run with max_workers=2 to stay within Gemini API rate limits smoothly
+        max_workers = min(2, len(jobs)) if jobs else 1
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_job = {}
+            for j in jobs:
+                future_to_job[executor.submit(_score_single, j)] = j
+
+            for future in concurrent.futures.as_completed(future_to_job):
+                try:
+                    entry = future.result()
+                    scored_jobs.append(entry)
+                    if (
+                        entry.get("score", 0) >= threshold
+                        and entry.get("experience_match") is True
+                        and entry.get("recommended_action") in ("APPLY", "REVIEW")
+                    ):
+                        qualified_ids.append(entry["job_id"])
+                except Exception as e:
+                    logger.warning(f"Error scoring job: {e}")
 
         source_counts: dict[str, int] = {}
         for j in scored_jobs:
@@ -341,7 +355,7 @@ class ScoringService:
             source_counts[s] = source_counts.get(s, 0) + 1
 
         logger.info(
-            f"Batch scoring: {len(qualified_ids)}/{len(jobs)} qualified "
+            f"Batch scoring complete: {len(qualified_ids)}/{len(jobs)} qualified "
             f"(>={threshold}) | sources: {source_counts}"
         )
         return scored_jobs, qualified_ids

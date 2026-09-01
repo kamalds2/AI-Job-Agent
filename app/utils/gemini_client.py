@@ -106,14 +106,22 @@ class GeminiClient:
                     text = "".join(part.get("text", "") for part in content_parts)
                     return text.strip()
 
-                if response.status_code in (429, 503) and attempt < 3:
-                    sleep_time = attempt * 1.5
-                    logger.info(f"[Gemini] {response.status_code} received, retrying in {sleep_time}s (attempt {attempt}/3)...")
-                    time.sleep(sleep_time)
+                if response.status_code == 429:
+                    resp_text = response.text.lower()
+                    if "quota" in resp_text or "exceeded" in resp_text:
+                        logger.warning(f"[Gemini] Quota limit reached — failing over immediately to fallback")
+                        return None
+                    if attempt < 2:
+                        time.sleep(1.0)
+                        continue
+                    return None
+
+                if response.status_code == 503 and attempt < 3:
+                    time.sleep(1.0)
                     continue
 
                 logger.warning(
-                    f"[Gemini] API error ({response.status_code}): {response.text[:300]}"
+                    f"[Gemini] API error ({response.status_code}): {response.text[:200]}"
                 )
                 return None
 

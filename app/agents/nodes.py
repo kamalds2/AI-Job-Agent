@@ -150,13 +150,14 @@ def make_scoring_node(db: Session):
             new_job_ids = set(state.get("new_job_ids", []))
 
             # 2. ALSO pick up any unscored NEW jobs from previous runs (backlog)
-            backlog_limit = 500  # Score up to 500 backlog jobs per run
+            backlog_limit = 100  # Score up to 100 backlog jobs per run
             backlog_jobs = (
                 db.query(job_repo.model)
                 .filter(
                     job_repo.model.status == "NEW",
                     job_repo.model.match_score.is_(None),
                 )
+                .order_by(job_repo.model.id.desc())
                 .limit(backlog_limit)
                 .all()
             )
@@ -178,7 +179,6 @@ def make_scoring_node(db: Session):
                 "developer", "api", "aws", "cloud", "microservice", "fastapi",
                 "architect", "platform", "data", "ml", "ai", "fullstack",
                 "full stack", "full-stack", "devops", "infrastructure", "infra",
-                "senior", "staff", "principal", "technical", "tech lead",
                 "kotlin", "scala", "golang", "typescript", "node", "react",
                 "kubernetes", "docker", "terraform", "distributed", "streaming",
             }
@@ -212,7 +212,6 @@ def make_scoring_node(db: Session):
                 f"{skipped_irrelevant} non-tech skipped"
             )
 
-
             # ── Stage 1: Mock-score ALL filtered jobs (fast, free) ──
             logger.info(f"Stage 1: Mock-scoring {len(jobs_to_score)} filtered jobs...")
             mock_scored, _ = mock_batch_score(
@@ -230,16 +229,14 @@ def make_scoring_node(db: Session):
                     if j.get("score", 0) >= MATCH_SCORE_THRESHOLD
                 ]
             else:
-                # ── Stage 2: LLM-score only the top 30 mock candidates ──
-                # Sort by mock score, take top 30 to send to Claude/OpenAI
+                # ── Stage 2: Parallel LLM-score top 10 candidates ──
                 top_candidates = sorted(
                     mock_scored, key=lambda x: x.get("score", 0), reverse=True
-                )[:30]
+                )[:10]
                 top_ids = {j["job_id"] for j in top_candidates}
 
                 logger.info(
-                    f"Stage 2: LLM-scoring top {len(top_candidates)} candidates "
-                    f"(mock score >= {MATCH_SCORE_THRESHOLD - 15})..."
+                    f"Stage 2: Parallel LLM-scoring top {len(top_candidates)} high-potential candidates..."
                 )
 
                 # Only send top candidates for expensive LLM scoring
