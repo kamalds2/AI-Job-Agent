@@ -23,9 +23,12 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def _run_agent_job():
-    """APScheduler job function — runs the agent pipeline."""
+    """APScheduler job function — runs the agent pipeline and LinkedIn recruiter feed scanner."""
+    import asyncio
     from app.agents.orchestrator import run_agent_sync
-    logger.info("⏰ Scheduled agent run starting...")
+    from app.services.linkedin_feed_scanner import LinkedInFeedScanner
+
+    logger.info("⏰ Scheduled agent run starting (Job Boards & ATS Pipeline)...")
     try:
         result = run_agent_sync()
         logger.info(
@@ -34,7 +37,22 @@ def _run_agent_job():
             f"qualified: {len(result.get('qualified_job_ids', []))}"
         )
     except Exception as e:
-        logger.error(f"❌ Scheduled run failed: {e}")
+        logger.error(f"❌ Scheduled ATS run failed: {e}")
+
+    logger.info("🔍 Scheduled LinkedIn Recruiter Feed & Outreach starting...")
+    try:
+        scanner = LinkedInFeedScanner()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        recruiter_result = loop.run_until_complete(scanner.scan_posts_and_outreach(dry_run=False))
+        loop.close()
+        logger.info(
+            f"✅ Scheduled LinkedIn Outreach complete — "
+            f"posts: {recruiter_result.get('posts_scanned', 0)}, "
+            f"sent: {recruiter_result.get('emails_sent', 0)}"
+        )
+    except Exception as e:
+        logger.error(f"❌ Scheduled LinkedIn feed scan failed: {e}")
 
 
 def start_scheduler():
