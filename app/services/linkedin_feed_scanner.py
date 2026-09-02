@@ -257,27 +257,55 @@ AI Job Agent Orchestrator
         posts = []
         try:
             from playwright.async_api import async_playwright
-            user_data_dir = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
+            user_chrome_dir = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
+            session_dir = os.path.join(os.path.expanduser("~"), ".ai_job_agent_linkedin_session")
 
             async with async_playwright() as p:
-                logger.info("[LinkedIn Browser] Connecting to LinkedIn feed scanner...")
+                logger.info("🌐 [LinkedIn Browser] Launching browser to scan https://www.linkedin.com/feed/ ...")
+                
+                # Launch persistent browser context
                 context = await p.chromium.launch_persistent_context(
-                    user_data_dir=os.path.join(os.path.expanduser("~"), ".ai_job_agent_linkedin_session"),
+                    user_data_dir=session_dir,
                     headless=True,
-                    args=["--disable-blink-features=AutomationControlled"],
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--start-maximized",
+                    ],
                 )
                 page = await context.new_page()
-                await page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=15000)
-                await asyncio.sleep(2)
+                await page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=20000)
+                await asyncio.sleep(3)
 
-                # Scroll to load feed posts
-                for _ in range(3):
-                    await page.evaluate("window.scrollBy(0, 1000)")
-                    await asyncio.sleep(1)
+                # Scroll and click "see more" and "Load more" buttons
+                for scroll_idx in range(6):
+                    # Click all "...see more" buttons on posts to expand full descriptions containing emails
+                    see_more_buttons = await page.query_selector_all("button.feed-shared-inline-show-more-text__see-more-less-toggle, button:has-text('...more'), button:has-text('see more')")
+                    for btn in see_more_buttons[:10]:
+                        try:
+                            if await btn.is_visible():
+                                await btn.click(timeout=1000)
+                        except Exception:
+                            pass
+
+                    # Click any "Load more posts" / "Show more results" buttons
+                    load_more_buttons = await page.query_selector_all("button:has-text('Load more'), button:has-text('Show more results'), button:has-text('Load new posts')")
+                    for lmb in load_more_buttons:
+                        try:
+                            if await lmb.is_visible():
+                                await lmb.click(timeout=1500)
+                                logger.info("🖱️ [LinkedIn Browser] Clicked 'Load more posts' button")
+                        except Exception:
+                            pass
+
+                    # Scroll down
+                    await page.evaluate("window.scrollBy(0, 1200)")
+                    await asyncio.sleep(1.5)
 
                 content = await page.content()
                 soup = BeautifulSoup(content, "html.parser")
                 feed_items = soup.find_all("div", class_=re.compile(r"feed-shared-update-v2"))
+
+                logger.info(f"🔍 [LinkedIn Browser] Found {len(feed_items)} feed post items on page.")
 
                 for item in feed_items:
                     text = item.get_text(separator="\n").strip()
@@ -285,19 +313,31 @@ AI Job Agent Orchestrator
                     if emails:
                         primary_email = emails[0]
                         title = self._extract_role_title(text)
+
+                        # Extract poster / author name
+                        actor_elem = item.find("span", class_=re.compile(r"update-components-actor__name|feed-shared-actor__name"))
+                        company_name = actor_elem.get_text().strip() if actor_elem else "LinkedIn Recruiter"
+
+                        # Extract post URL
+                        post_link_elem = item.find("a", href=re.compile(r"/feed/update/urn:li:activity:|/posts/"))
+                        post_url = "https://www.linkedin.com/feed/"
+                        if post_link_elem and post_link_elem.get("href"):
+                            href = post_link_elem["href"]
+                            post_url = href if href.startswith("http") else f"https://www.linkedin.com{href}"
+
                         posts.append({
                             "title": title,
-                            "company": "LinkedIn Hiring Contact",
-                            "post_url": "https://www.linkedin.com/feed/",
-                            "raw_text": text[:2000],
+                            "company": company_name,
+                            "post_url": post_url,
+                            "raw_text": text[:2500],
                             "hr_email": primary_email,
-                            "score": 90,
+                            "score": 95 if ("java" in text.lower() or "python" in text.lower() or "backend" in text.lower()) else 70,
                         })
-                        logger.info(f"[LinkedIn Browser] Discovered HR email {primary_email} for '{title}' from feed")
+                        logger.info(f"✨ [LinkedIn Browser] Discovered HR email {primary_email} for '{title}' @ {company_name}")
 
                 await context.close()
         except Exception as be:
-            logger.info(f"[LinkedIn Browser] Browser scan info: {be}")
+            logger.info(f"[LinkedIn Browser] Browser scan status: {be}")
 
         return posts
 
