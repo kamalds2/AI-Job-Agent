@@ -71,7 +71,7 @@ class AdzunaConnector(BaseConnector):
                         "results_per_page": 20,
                         "what": query["what"],
                         "content-type": "application/json",
-                        "max_days_old": 3,  # Strict freshness: only jobs posted in last 3 days
+                        "max_days_old": 1,  # Ultra-strict freshness: only jobs posted in the last 24-48 hours (1 day)
                         "sort_by": "date",
                     }
                     if query.get("where"):
@@ -144,8 +144,8 @@ class AdzunaConnector(BaseConnector):
                     except Exception:
                         pass
 
-                # Strict freshness: drop any postings older than 7 days
-                if posted_date and (date.today() - posted_date).days > 7:
+                # Ultra-strict freshness: drop any postings older than 1 day
+                if posted_date and (date.today() - posted_date).days > 1:
                     continue
 
                 description = job.get("description") or ""
