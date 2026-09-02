@@ -78,11 +78,17 @@ class LinkedInFeedScanner:
         print("=" * 65 + "\n")
 
         async with async_playwright() as p:
-            context = await p.chromium.launch_persistent_context(
-                user_data_dir=session_dir,
-                headless=False,
-                args=["--start-maximized"],
-            )
+            # Try launching Google Chrome directly, fallback to default chromium
+            launch_kwargs = {
+                "user_data_dir": session_dir,
+                "headless": False,
+                "args": ["--start-maximized", "--disable-blink-features=AutomationControlled"],
+            }
+            try:
+                context = await p.chromium.launch_persistent_context(channel="chrome", **launch_kwargs)
+            except Exception:
+                context = await p.chromium.launch_persistent_context(**launch_kwargs)
+
             page = await context.new_page()
             await page.goto("https://www.linkedin.com/login")
             print("[WAITING] Waiting for login... (Once you see your feed, you can close the browser or wait)")
@@ -106,8 +112,9 @@ class LinkedInFeedScanner:
         if use_browser:
             browser_posts = await self._scan_via_browser()
             for p in browser_posts:
-                if p["post_url"] not in seen_urls:
-                    seen_urls.add(p["post_url"])
+                dedup_key = f"{p.get('hr_email')}_{p.get('title')}_{p.get('post_url')}"
+                if dedup_key not in seen_urls:
+                    seen_urls.add(dedup_key)
                     discovered_posts.append(p)
 
         # ── Step 2: Fallback / Search Stream for Public LinkedIn Posts ──
@@ -183,8 +190,8 @@ class LinkedInFeedScanner:
             if hr_email:
                 try:
                     # Generate tailored 1-page ATS resume
-                    resume_path = self.resume_service.generate_tailored_resume(
-                        job_id=f"linkedin_{len(outreach_entries)}",
+                    resume_path = self.resume_service.create_tailored_resume(
+                        job_id=99000 + len(outreach_entries),
                         job_title=title,
                         company=company,
                         job_description=post["raw_text"],
@@ -193,11 +200,17 @@ class LinkedInFeedScanner:
                     logger.warning(f"Failed to generate resume for {title}: {res_err}")
 
                 # Draft personalized email tailored for 0-2 yrs
+                resume_content = ""
+                try:
+                    resume_content = self.resume_service.extract_resume_text()
+                except Exception:
+                    pass
+
                 draft = self.email_service.draft_email(
                     job_title=title,
                     company=company,
                     job_description=post["raw_text"],
-                    resume_text=self.resume_service.get_resume_text(),
+                    resume_text=resume_content,
                     match_score=score,
                 )
                 cover_letter = draft.get("body", "")
@@ -313,78 +326,125 @@ AI Job Agent Orchestrator
                     context = browser.contexts[0] if browser.contexts else await browser.new_context()
                     logger.info("⚡ [LinkedIn Browser] Connected to active Chrome browser session via CDP!")
                 except Exception:
-                    logger.info("🌐 [LinkedIn Browser] Launching dedicated browser context for https://www.linkedin.com/feed/ ...")
-                    context = await p.chromium.launch_persistent_context(
-                        user_data_dir=session_dir,
-                        headless=True,
-                        args=[
+                    logger.info("🌐 [LinkedIn Browser] Launching dedicated browser context...")
+                    launch_kwargs = {
+                        "user_data_dir": session_dir,
+                        "headless": True,
+                        "args": [
                             "--disable-blink-features=AutomationControlled",
                             "--start-maximized",
+                            "--no-sandbox",
                         ],
-                    )
+                    }
+                    try:
+                        context = await p.chromium.launch_persistent_context(channel="chrome", **launch_kwargs)
+                    except Exception:
+                        context = await p.chromium.launch_persistent_context(**launch_kwargs)
 
                 page = await context.new_page()
-                await page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=20000)
-                await asyncio.sleep(3)
+                
+                # Stealth injection to prevent LinkedIn bot detection
+                await page.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                    window.chrome = { runtime: {} };
+                """)
 
-                # Scroll and click "see more" and "Load more" buttons
-                for scroll_idx in range(6):
-                    # Click all "...see more" buttons on posts to expand full descriptions containing emails
-                    see_more_buttons = await page.query_selector_all("button.feed-shared-inline-show-more-text__see-more-less-toggle, button:has-text('...more'), button:has-text('see more')")
-                    for btn in see_more_buttons[:10]:
-                        try:
-                            if await btn.is_visible():
-                                await btn.click(timeout=1000)
-                        except Exception:
-                            pass
+                scan_urls = [
+                    "https://www.linkedin.com/feed/",
+                    "https://www.linkedin.com/search/results/content/?keywords=hiring%20%22email%22%20java%20OR%20python&sortBy=%22date_posted%22",
+                ]
 
-                    # Click any "Load more posts" / "Show more results" buttons
-                    load_more_buttons = await page.query_selector_all("button:has-text('Load more'), button:has-text('Show more results'), button:has-text('Load new posts')")
-                    for lmb in load_more_buttons:
-                        try:
-                            if await lmb.is_visible():
-                                await lmb.click(timeout=1500)
-                                logger.info("🖱️ [LinkedIn Browser] Clicked 'Load more posts' button")
-                        except Exception:
-                            pass
+                for target_url in scan_urls:
+                    try:
+                        logger.info(f"🌐 [LinkedIn Browser] Navigating to {target_url} ...")
+                        await page.goto(target_url, wait_until="domcontentloaded", timeout=25000)
+                        await asyncio.sleep(3)
 
-                    # Scroll down
-                    await page.evaluate("window.scrollBy(0, 1200)")
-                    await asyncio.sleep(1.5)
+                        # Scroll and expand posts
+                        for scroll_idx in range(5):
+                            # Click all "...see more" buttons on posts to expand full descriptions containing emails
+                            see_more_buttons = await page.query_selector_all("button.feed-shared-inline-show-more-text__see-more-less-toggle, button:has-text('...more'), button:has-text('see more')")
+                            for btn in see_more_buttons[:15]:
+                                try:
+                                    if await btn.is_visible():
+                                        await btn.click(timeout=1000)
+                                except Exception:
+                                    pass
 
-                content = await page.content()
-                soup = BeautifulSoup(content, "html.parser")
-                feed_items = soup.find_all("div", class_=re.compile(r"feed-shared-update-v2"))
+                            # Click any "Load more posts" / "Show more results" buttons
+                            load_more_buttons = await page.query_selector_all("button:has-text('Load more'), button:has-text('Show more results'), button:has-text('Load new posts')")
+                            for lmb in load_more_buttons:
+                                try:
+                                    if await lmb.is_visible():
+                                        await lmb.click(timeout=1500)
+                                        logger.info("🖱️ [LinkedIn Browser] Clicked 'Load more posts' button")
+                                except Exception:
+                                    pass
 
-                logger.info(f"🔍 [LinkedIn Browser] Found {len(feed_items)} feed post items on page.")
+                            # Scroll down
+                            await page.evaluate("window.scrollBy(0, 1500)")
+                            await asyncio.sleep(1.5)
 
-                for item in feed_items:
-                    text = item.get_text(separator="\n").strip()
-                    emails = extract_emails_from_text(text)
-                    if emails:
-                        primary_email = emails[0]
-                        title = self._extract_role_title(text)
+                        content = await page.content()
+                        soup = BeautifulSoup(content, "html.parser")
+                        
+                        # Match modern LinkedIn dynamic feed containers
+                        raw_feed_items = soup.find_all(lambda tag: tag.name in ['div', 'article', 'section'] and (
+                            tag.get("data-lazy-mount-id") or
+                            tag.get("data-urn") or
+                            (tag.get_text().strip().startswith("Feed post") and len(tag.get_text().strip()) > 80)
+                        ))
 
-                        # Extract poster / author name
-                        actor_elem = item.find("span", class_=re.compile(r"update-components-actor__name|feed-shared-actor__name"))
-                        company_name = actor_elem.get_text().strip() if actor_elem else "LinkedIn Recruiter"
+                        # Filter down to top-level distinct post containers
+                        feed_items = []
+                        seen_texts = set()
+                        for item in raw_feed_items:
+                            txt = item.get_text(separator="\n").strip()
+                            # Use first 80 chars of text as fingerprint
+                            fp = txt[:80]
+                            if fp not in seen_texts and len(txt) > 80:
+                                seen_texts.add(fp)
+                                feed_items.append(item)
 
-                        # Extract post URL
-                        post_link_elem = item.find("a", href=re.compile(r"/feed/update/urn:li:activity:|/posts/"))
-                        post_url = "https://www.linkedin.com/feed/"
-                        if post_link_elem and post_link_elem.get("href"):
-                            href = post_link_elem["href"]
-                            post_url = href if href.startswith("http") else f"https://www.linkedin.com{href}"
+                        logger.info(f"🔍 [LinkedIn Browser] Extracted {len(feed_items)} distinct feed post items from {target_url}.")
 
-                        posts.append({
-                            "title": title,
-                            "company": company_name,
-                            "post_url": post_url,
-                            "raw_text": text[:2500],
-                            "hr_email": primary_email,
-                            "score": 95 if ("java" in text.lower() or "python" in text.lower() or "backend" in text.lower()) else 70,
-                        })
-                        logger.info(f"✨ [LinkedIn Browser] Discovered HR email {primary_email} for '{title}' @ {company_name}")
+                        for item in feed_items:
+                            text = item.get_text(separator="\n").strip()
+                            emails = extract_emails_from_text(text)
+                            title = self._extract_role_title(text)
+
+                            # Extract poster / author name
+                            actor_elem = item.find(lambda t: t.name in ["span", "h3", "a"] and any("actor" in c or "name" in c or "title" in c for c in t.get("class", [])))
+                            company_name = actor_elem.get_text().strip() if actor_elem else "LinkedIn Recruiter"
+
+                            # Extract post URL
+                            post_url = target_url
+                            if item.get("data-urn"):
+                                post_url = f"https://www.linkedin.com/feed/update/{item['data-urn']}/"
+                            else:
+                                post_link_elem = item.find("a", href=re.compile(r"/feed/update/urn:li:activity:|/posts/"))
+                                if post_link_elem and post_link_elem.get("href"):
+                                    href = post_link_elem["href"]
+                                    post_url = href if href.startswith("http") else f"https://www.linkedin.com{href}"
+
+                            # Only include if either email found OR relevant tech hiring post
+                            is_tech_hiring = any(kw in text.lower() for kw in ["hiring", "opening", "vacancy", "cv", "resume", "developer", "engineer"])
+                            
+                            if emails or is_tech_hiring:
+                                posts.append({
+                                    "title": title,
+                                    "company": company_name,
+                                    "post_url": post_url,
+                                    "raw_text": text[:2500],
+                                    "hr_email": emails[0] if emails else None,
+                                    "score": 95 if any(k in text.lower() for k in ["java", "spring", "python", "backend", "fastapi"]) else 70,
+                                })
+                                if emails:
+                                    logger.info(f"✨ [LinkedIn Browser] Found HR email {emails[0]} for '{title}' @ {company_name}")
+                                else:
+                                    logger.info(f"📌 [LinkedIn Browser] Found hiring post '{title}' @ {company_name}")
+                    except Exception as page_err:
+                        logger.warning(f"[LinkedIn Browser] Page {target_url} scan note: {page_err}")
 
                 await context.close()
         except Exception as be:
