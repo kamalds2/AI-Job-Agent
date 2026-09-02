@@ -62,10 +62,10 @@ async def main():
         from app.agents.orchestrator import run_agent
         from app.services.linkedin_feed_scanner import LinkedInFeedScanner
 
-        print("🚀 [1/2] Executing Job Boards & ATS Aggregator Pipeline...")
+        print("[1/2] Executing Job Boards & ATS Aggregator Pipeline...")
         result = await run_agent(dry_run=args.dry_run)
 
-        print(f"\n✅ Job Boards & ATS Pipeline complete:")
+        print(f"\n[OK] Job Boards & ATS Pipeline complete:")
         print(f"   Jobs fetched:   {result.get('raw_jobs_count', 0)}")
         print(f"   New jobs:       {result.get('new_jobs_count', 0)}")
         print(f"   Scored:         {len(result.get('scored_jobs', []))}")
@@ -73,11 +73,11 @@ async def main():
         print(f"   Resumes made:   {len(result.get('resume_paths', {}))}")
         print(f"   Job Report:     {result.get('report_path', 'N/A')}")
 
-        print("\n🔍 [2/2] Executing LinkedIn Recruiter Feed & Outreach Pipeline...")
+        print("\n[2/2] Executing LinkedIn Recruiter Feed & Outreach Pipeline...")
         scanner = LinkedInFeedScanner()
         recruiter_result = await scanner.scan_posts_and_outreach(dry_run=args.dry_run)
 
-        print(f"\n✅ LinkedIn Recruiter Outreach complete:")
+        print(f"\n[OK] LinkedIn Recruiter Outreach complete:")
         print(f"   LinkedIn Posts Scanned:        {recruiter_result.get('posts_scanned', 0)}")
         print(f"   Verified Recruiter Emails:     {recruiter_result.get('recruiter_emails_found', 0)}")
         print(f"   Cold Emails Sent to HR:        {recruiter_result.get('emails_sent', 0)}")
@@ -90,7 +90,7 @@ async def main():
                 print(f"   - {err}")
 
         print("\n" + "=" * 60)
-        print("  🎉 COMPLETE FULL RUN FINISHED SUCCESSFULLY!")
+        print("  [COMPLETE] FULL AGENT RUN FINISHED SUCCESSFULLY!")
         print("=" * 60)
 
 
