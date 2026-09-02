@@ -40,11 +40,20 @@ TLD_VARIATIONS = [".com", ".in", ".co", ".ai", ".io", ".co.in", ".tech"]
 PREFIX_VARIATIONS = ["hr", "careers", "talent", "recruiting", "jobs", "hiring"]
 
 
+NON_RECRUITER_PREFIXES = {
+    "accommodation", "accommodations", "accessibility", "privacy", "security",
+    "legal", "compliance", "dpo", "press", "media", "support", "help",
+    "billing", "abuse", "noreply", "no-reply", "donotreply", "ir", "investor",
+    "inquiries", "inquiry", "info", "contact", "sales", "feedback", "admin",
+}
+
+
 def extract_emails_from_text(text: str) -> list[str]:
     """
     Extract valid recruiter/contact email addresses from any plain text or HTML.
     Handles standard emails as well as obfuscated formats (e.g. 'recruiter [at] company [dot] com').
-    Filters out image file extensions (.png, .jpg) and noisy system emails.
+    Filters out image file extensions (.png, .jpg), noisy system emails, and non-recruiter
+    compliance/accommodation contacts.
     """
     if not text:
         return []
@@ -67,7 +76,13 @@ def extract_emails_from_text(text: str) -> list[str]:
             continue
         # Avoid common ATS platforms as recipient domains
         domain = e_lower.split("@")[-1]
+        local_part = e_lower.split("@")[0].lower()
+
         if domain in ATS_DOMAINS:
+            continue
+
+        # Exclude non-recruiter department emails (e.g. accommodation@, privacy@, legal@)
+        if any(local_part == prefix or local_part.startswith(f"{prefix}.") or local_part.startswith(f"{prefix}_") for prefix in NON_RECRUITER_PREFIXES):
             continue
 
         seen.add(e_lower)

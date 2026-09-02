@@ -76,31 +76,56 @@ def _template_email(
     company: str,
     match_score: int,
     recruiter_name: Optional[str] = None,
+    job_description: str = "",
 ) -> dict:
-    """Professional fallback template when LLMs are unavailable."""
+    """Professional fallback template when LLMs are unavailable, strictly aligned with 0-2 yrs candidate profile."""
     greeting = f"Dear {recruiter_name}," if recruiter_name else "Dear Hiring Manager,"
     subject = f"Application: {job_title} at {company}"
+
+    jd_lower = (job_description or "").lower()
+    bullets = []
+    
+    # Select highlights matching JD keywords
+    if any(k in jd_lower for k in ["java", "spring", "microservice", "backend"]):
+        bullets.append("- Java 17/21, Spring Boot 3, Microservices architecture, Spring Cloud, Hibernate/JPA")
+    if any(k in jd_lower for k in ["python", "fastapi", "django", "flask", "api"]):
+        bullets.append("- Python, FastAPI, RESTful API design, Postman, Swagger/OpenAPI")
+    if any(k in jd_lower for k in ["aws", "cloud", "s3", "lambda", "ecs", "ec2"]):
+        bullets.append("- AWS Cloud services (EC2, ECS, Lambda, S3, RDS PostgreSQL, SQS, SNS)")
+    if any(k in jd_lower for k in ["docker", "kubernetes", "k8s", "ci/cd", "devops", "sre"]):
+        bullets.append("- Docker containerization, Kubernetes orchestration, CI/CD pipeline automation")
+    if any(k in jd_lower for k in ["ai", "ml", "langchain", "llm", "agent", "rag"]):
+        bullets.append("- Generative AI integration, LangGraph / LangChain agent orchestration")
+
+    # Fallback to default core tech if no specific match
+    if not bullets:
+        bullets = [
+            "- Java, Spring Boot, Microservices architecture, REST APIs",
+            "- Python, FastAPI, PostgreSQL, SQL database optimization",
+            "- AWS Cloud services, Docker, CI/CD pipelines",
+            "- Applied AI agent development (LangChain / LangGraph)",
+        ]
+
+    bullets_text = "\n".join(bullets)
+
     body = f"""{greeting}
 
 I am writing to express my strong interest in the {job_title} position at {company}.
 
-I am a Java/Spring Boot backend engineer with 5+ years of experience building scalable microservices on AWS. My background includes:
+I am an early-career Backend & Software Engineer with 1+ years of hands-on experience building scalable microservices, REST APIs, and modern backend systems. My core technical background includes:
 
-- Java, Spring Boot, Spring Cloud, Microservices architecture
-- AWS (EC2, ECS, Lambda, RDS, SQS, SNS, S3)
-- Python, FastAPI, REST APIs, GraphQL
-- Kubernetes, Docker, Terraform, CI/CD pipelines
-- AI/ML integration and LangChain/LangGraph agent development
+{bullets_text}
 
-I am particularly excited about {company}'s mission and believe my experience aligns well with the {job_title} role (match score: {match_score}/100).
+I am excited about {company}'s work and confident that my practical skills in backend engineering and cloud deployments align well with the requirements for the {job_title} role.
 
-I have attached my tailored resume for your review. I would welcome the opportunity to discuss how my skills can contribute to your team.
+I have attached my tailored ATS resume for your review. I would welcome the opportunity to discuss how my technical skills can add immediate value to your engineering team.
 
 Thank you for your time and consideration.
 
 Best regards,
 {CANDIDATE_NAME}
 kamalkumar.doddi@gmail.com
++91 6304883114
 """
     return {
         "subject": subject,
@@ -209,7 +234,13 @@ class EmailService:
 
         # Fallback template
         logger.info(f"[Template] Using fallback email for '{job_title}' @ {company}")
-        return _template_email(job_title, company, match_score, recruiter_name)
+        return _template_email(
+            job_title=job_title,
+            company=company,
+            match_score=match_score,
+            recruiter_name=recruiter_name,
+            job_description=job_description,
+        )
 
     def _parse_llm_response(self, content: str) -> Optional[dict]:
         """Parse JSON from LLM response, handling markdown fences."""
@@ -253,8 +284,10 @@ class EmailService:
         subject: str,
         body: str,
         pdf_attachment_path: Optional[str] = None,
+        attachment_path: Optional[str] = None,
+        **kwargs,
     ) -> bool:
-        """Send email via Gmail API with optional PDF attachment."""
+        """Send email via Gmail API with optional PDF / Excel attachment."""
         if DRY_RUN:
             logger.info(f"[DRY RUN] Would send email to {to_email}: '{subject}'")
             return True
@@ -274,14 +307,18 @@ class EmailService:
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "plain"))
 
-            if pdf_attachment_path and os.path.exists(pdf_attachment_path):
-                with open(pdf_attachment_path, "rb") as f:
-                    part = MIMEBase("application", "pdf")
+            attachment = pdf_attachment_path or kwargs.get("attachment_path")
+            if attachment and os.path.exists(attachment):
+                filename = os.path.basename(attachment)
+                maintype = "application"
+                subtype = "vnd.openxmlformats-officedocument.spreadsheetml.sheet" if filename.endswith((".xlsx", ".xls")) else "pdf"
+                with open(attachment, "rb") as f:
+                    part = MIMEBase(maintype, subtype)
                     part.set_payload(f.read())
                     encoders.encode_base64(part)
                     part.add_header(
                         "Content-Disposition",
-                        f"attachment; filename={os.path.basename(pdf_attachment_path)}",
+                        f"attachment; filename={filename}",
                     )
                     msg.attach(part)
 
