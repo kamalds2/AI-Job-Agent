@@ -58,40 +58,40 @@ async def main():
         finally:
             db.close()
     else:
-        # Full agent run
+        # Full agent run — Pipeline 1 (Job Boards) + Pipeline 2 (LinkedIn Feed)
         from app.agents.orchestrator import run_agent
+        from app.services.linkedin_feed_scanner import LinkedInFeedScanner
+
+        print("🚀 [1/2] Executing Job Boards & ATS Aggregator Pipeline...")
         result = await run_agent(dry_run=args.dry_run)
 
-        print(f"\nAgent run complete!")
-        print(f"   Run ID:         {result.get('run_id')}")
+        print(f"\n✅ Job Boards & ATS Pipeline complete:")
         print(f"   Jobs fetched:   {result.get('raw_jobs_count', 0)}")
         print(f"   New jobs:       {result.get('new_jobs_count', 0)}")
         print(f"   Scored:         {len(result.get('scored_jobs', []))}")
         print(f"   Qualified:      {len(result.get('qualified_job_ids', []))}")
         print(f"   Resumes made:   {len(result.get('resume_paths', {}))}")
-        print(f"   Emails sent:    {result.get('emails_sent', 0)}")
-        print(f"   WhatsApp sent:  {result.get('whatsapp_sent', False)}")
-        print(f"   Report:         {result.get('report_path', 'N/A')}")
+        print(f"   Job Report:     {result.get('report_path', 'N/A')}")
+
+        print("\n🔍 [2/2] Executing LinkedIn Recruiter Feed & Outreach Pipeline...")
+        scanner = LinkedInFeedScanner()
+        recruiter_result = await scanner.scan_posts_and_outreach(dry_run=args.dry_run)
+
+        print(f"\n✅ LinkedIn Recruiter Outreach complete:")
+        print(f"   LinkedIn Posts Scanned:        {recruiter_result.get('posts_scanned', 0)}")
+        print(f"   Verified Recruiter Emails:     {recruiter_result.get('recruiter_emails_found', 0)}")
+        print(f"   Cold Emails Sent to HR:        {recruiter_result.get('emails_sent', 0)}")
+        print(f"   Direct Post Links Prepared:    {recruiter_result.get('direct_links_prepared', 0)}")
+        print(f"   Recruiter HR Report:           {recruiter_result.get('report_path', 'N/A')}")
 
         if errors := result.get("errors"):
             print(f"\n[ERRORS] ({len(errors)}):")
             for err in errors:
                 print(f"   - {err}")
 
-        # Show top matches
-        scored = sorted(
-            result.get("scored_jobs", []),
-            key=lambda x: x.get("score", 0),
-            reverse=True,
-        )[:5]
-
-        if scored:
-            print(f"\nTop Matches:")
-            for i, job in enumerate(scored, 1):
-                print(
-                    f"   {i}. [{job.get('score', 0):3}/100] "
-                    f"{job.get('title', '')[:40]:40} @ {job.get('company', '')[:20]}"
-                )
+        print("\n" + "=" * 60)
+        print("  🎉 COMPLETE FULL RUN FINISHED SUCCESSFULLY!")
+        print("=" * 60)
 
 
 if __name__ == "__main__":
