@@ -397,6 +397,9 @@ def make_email_node(db: Session):
 
             score_map = {j["job_id"]: j for j in scored_jobs}
 
+            applications = []
+            recruiter_emails_found = 0
+
             for job_id in qualified_ids:
                 job = job_repo.get_by_id(job_id)
                 if not job:
@@ -425,8 +428,12 @@ def make_email_node(db: Session):
                 # Check for explicit recruiter email in JD / post
                 hr_emails = guess_hr_email(company_name, job.job_url, jd_text=job.description or "")
                 primary_hr_email = hr_emails[0] if hr_emails else None
+                if primary_hr_email:
+                    recruiter_emails_found += 1
+
                 sent_to_hr = False
                 apply_method = "direct_application_link"
+                app_route = "Stream B (1-Click Apply Link)"
 
                 # ── Stream A: Recruiter Email Outreach (When explicit HR email found) ──
                 if primary_hr_email:
@@ -439,6 +446,7 @@ def make_email_node(db: Session):
                     if sent_to_hr:
                         emails_sent += 1
                         apply_method = "recruiter_email"
+                        app_route = "Stream A (Recruiter Outreach)"
                         logger.info(
                             f"[EMAIL -> HR] [{score}/100] {job.title} @ {company_name} "
                             f"-> {primary_hr_email}"
@@ -448,10 +456,23 @@ def make_email_node(db: Session):
                 else:
                     direct_applied += 1
                     apply_method = "direct_application_link"
+                    app_route = "Stream B (1-Click Apply Link)"
                     logger.info(
                         f"[APPLY LINK PREPARED] [{score}/100] {job.title} @ {company_name} "
                         f"-> {job.job_url}"
                     )
+
+                # Record application item for Excel report
+                applications.append({
+                    "title": job.title,
+                    "company": company_name,
+                    "score": f"{score}/100",
+                    "route": app_route,
+                    "to_email": primary_hr_email or "None (Direct Link)",
+                    "email_sent": sent_to_hr,
+                    "resume_path": resume_pdf,
+                    "job_url": job.job_url,
+                })
 
                 # ── Record in DB ──
                 app_repo.create_application(
@@ -475,6 +496,9 @@ def make_email_node(db: Session):
             return {
                 **state,
                 "email_drafts": email_drafts,
+                "applications": applications,
+                "posts_scanned_for_hr": len(qualified_ids),
+                "recruiter_emails_found": recruiter_emails_found,
                 "emails_sent": emails_sent,
                 "direct_applied": direct_applied,
                 "logs": logs,
@@ -544,8 +568,8 @@ def make_notify_node():
 
 def make_report_node():
     """
-    Node 6: Excel Report Generation
-    Generates daily Excel report with all job activity.
+    Node 6: Excel Report Generation & Emailing
+    Generates daily multi-tab Excel report and emails it to the candidate.
     """
     def report_node(state: AgentState) -> AgentState:
         logger.info("📊 [Node 6] Report Generation starting...")
@@ -556,26 +580,17 @@ def make_report_node():
             report_service = ReportService()
 
             scored_jobs = state.get("scored_jobs", [])
-            email_drafts = state.get("email_drafts", [])
-
-            # Build applications list
-            applications = []
-            for draft in email_drafts:
-                applications.append({
-                    "title": draft.get("title", ""),
-                    "company": draft.get("company", ""),
-                    "score": draft.get("score", ""),
-                    "to_email": "Drafted (no recruiter email)",
-                    "email_sent": False,
-                    "resume_path": state.get("resume_paths", {}).get(draft.get("job_id")),
-                })
+            applications = state.get("applications", [])
 
             run_stats = {
                 "total_fetched": state.get("raw_jobs_count", 0),
                 "new_jobs": state.get("new_jobs_count", 0),
                 "duplicates_skipped": 0,
                 "qualified": len(state.get("qualified_job_ids", [])),
+                "posts_scanned_for_hr": state.get("posts_scanned_for_hr", len(state.get("qualified_job_ids", []))),
+                "recruiter_emails_found": state.get("recruiter_emails_found", 0),
                 "emails_sent": state.get("emails_sent", 0),
+                "direct_applied": state.get("direct_applied", 0),
                 "resumes_generated": len(state.get("resume_paths", {})),
                 "whatsapp_sent": state.get("whatsapp_sent", False),
             }
@@ -590,44 +605,23 @@ def make_report_node():
             if EMAIL_ADDRESS and os.path.exists(report_path):
                 try:
                     today_str = date.today().strftime("%Y-%m-%d")
-                    qualified_count = len(state.get("qualified_job_ids", []))
-                    report_subject = f"📊 [AI Job Agent] Daily Intelligence & Job Report — {today_str} ({qualified_count} Matches)"
+                    report_subject = f"📊 AI Job Agent Report — {today_str} ({run_stats['qualified']} Eligible Matches)"
                     
-                    # Build clean overview of top eligible jobs with 1-click apply links
-                    top_matches_text = []
-                    qualified_set = set(state.get("qualified_job_ids", []))
-                    matched_list = [j for j in scored_jobs if j.get("job_id") in qualified_set]
-                    matched_list = sorted(matched_list, key=lambda x: x.get("score", 0), reverse=True)
-
-                    for idx, j in enumerate(matched_list[:10], 1):
-                        title = j.get("title", "Role")
-                        company = j.get("company", "Company")
-                        score = j.get("score", 0)
-                        job_url = j.get("job_url", "")
-                        top_matches_text.append(f"{idx}. [{score}/100] {title} @ {company}\n   👉 Apply Link: {job_url}\n")
-
-                    matches_str = "\n".join(top_matches_text) if top_matches_text else "No new jobs met threshold (>=65) today."
-
                     report_body = f"""Hi {CANDIDATE_NAME},
 
-Here is your daily AI Job Agent intelligence summary and activity report for {today_str}.
+Please find attached your AI Job Agent daily report for {today_str}.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📈 RUN METRICS & SUMMARY:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Total Jobs Ingested:    {run_stats['total_fetched']}
-• New Jobs Identified:     {run_stats['new_jobs']}
-• Qualified Jobs (0-2 yr): {run_stats['qualified']} (Score >= {MATCH_SCORE_THRESHOLD})
-• Tailored ATS Resumes:    {run_stats['resumes_generated']}
-• Recruiter Cold Outreach: {run_stats['emails_sent']}
+📊 Execution & Recruiter Search Summary:
+• Total Jobs Ingested: {run_stats['total_fetched']}
+• New Jobs Identified: {run_stats['new_jobs']}
+• Qualified Matches (0-2 Yrs): {run_stats['qualified']} (Score >= {MATCH_SCORE_THRESHOLD})
+• Tailored ATS Resumes Generated: {run_stats['resumes_generated']}
+• Posts Scanned for Recruiter Emails: {run_stats['posts_scanned_for_hr']}
+• Recruiter Emails Discovered: {run_stats['recruiter_emails_found']}
+• Cold Outreach Dispatched (Stream A): {run_stats['emails_sent']}
+• Direct 1-Click Apply Links Prepared (Stream B): {run_stats['direct_applied']}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 TOP ELIGIBLE MATCHES (1-CLICK APPLY):
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{matches_str}
-
-📎 ATTACHED WORKBOOK:
-The complete multi-tab Excel report ({os.path.basename(report_path)}) is attached with full job descriptions, match rationales, skill badges, and application routes.
+All job listings, matching skills, direct portal application links, and outreach logs are attached in the Excel file ({os.path.basename(report_path)}).
 
 Best regards,
 AI Job Agent Orchestrator
@@ -639,7 +633,7 @@ AI Job Agent Orchestrator
                         body=report_body,
                         attachment_path=report_path,
                     )
-                    logger.info(f"✅ Daily Excel report emailed to {EMAIL_ADDRESS}")
+                    logger.info(f"✅ Daily Excel report emailed to {EMAIL_ADDRESS} with attachment {report_path}")
                 except Exception as mail_err:
                     logger.warning(f"Failed to email daily Excel report to candidate: {mail_err}")
 

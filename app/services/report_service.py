@@ -106,11 +106,14 @@ class ReportService:
             ("Total Jobs Fetched", stats.get("total_fetched", 0)),
             ("New Jobs Saved", stats.get("new_jobs", 0)),
             ("Duplicates Skipped", stats.get("duplicates_skipped", 0)),
-            ("Jobs Scored (AI)", len(scored_jobs)),
+            ("Jobs Scored (AI 0-2 Yr)", len(scored_jobs)),
             ("Qualified Jobs (≥65)", stats.get("qualified", 0)),
-            ("Resumes Generated", stats.get("resumes_generated", 0)),
-            ("Emails Sent", stats.get("emails_sent", 0)),
-            ("WhatsApp Sent", "Yes" if stats.get("whatsapp_sent") else "No"),
+            ("Tailored ATS Resumes Made", stats.get("resumes_generated", 0)),
+            ("Posts Scanned for Recruiter Emails", stats.get("posts_scanned_for_hr", 0)),
+            ("Recruiter Emails Discovered", stats.get("recruiter_emails_found", 0)),
+            ("Recruiter Outreach Sent (Stream A)", stats.get("emails_sent", 0)),
+            ("Direct Apply Links Prepared (Stream B)", stats.get("direct_applied", 0)),
+            ("WhatsApp Match Alerts Sent", "Yes" if stats.get("whatsapp_sent") else "No"),
         ]
 
         for i, (key, val) in enumerate(rows, start=3):
@@ -128,19 +131,19 @@ class ReportService:
                 ws[f"B{i}"].fill = ALT_FILL
 
         # Top 5 matches table
-        ws["A14"] = "🏆 Top 5 Matches"
-        ws["A14"].font = Font(bold=True, size=12)
+        ws["A17"] = "🏆 Top Qualified Matches (0-2 Yrs Target)"
+        ws["A17"].font = Font(bold=True, size=12)
 
         top_jobs = sorted(scored_jobs, key=lambda x: x.get("score", 0), reverse=True)[:5]
-        headers = ["Rank", "Title", "Company", "Score", "Action", "URL"]
+        headers = ["Rank", "Title", "Company", "Score", "Action", "Apply Link"]
         for col, h in enumerate(headers, 1):
-            cell = ws.cell(row=15, column=col, value=h)
+            cell = ws.cell(row=18, column=col, value=h)
             cell.fill = HEADER_FILL
             cell.font = HEADER_FONT
             cell.border = thin_border
 
         for rank, job in enumerate(top_jobs, 1):
-            row = 15 + rank
+            row = 18 + rank
             score = job.get("score", 0)
             fill = GREEN_FILL if score >= 75 else YELLOW_FILL if score >= 65 else RED_FILL
             for col, val in enumerate([
@@ -161,7 +164,7 @@ class ReportService:
         ws.column_dimensions["F"].width = 50
 
     def _build_jobs_sheet(self, wb, scored_jobs: list[dict]):
-        ws = wb.create_sheet("📋 All Jobs")
+        ws = wb.create_sheet("📋 All Scored Jobs")
 
         headers = [
             "Job ID", "Title", "Company", "Score", "Recommended Action",
@@ -204,11 +207,11 @@ class ReportService:
             ws.column_dimensions[get_column_letter(i)].width = w
 
     def _build_applications_sheet(self, wb, applications: list[dict]):
-        ws = wb.create_sheet("📧 Applications")
+        ws = wb.create_sheet("📧 Recruiter Outreach & Applications")
 
         headers = [
-            "Title", "Company", "Score", "Email To",
-            "Email Sent", "Resume Generated", "Date",
+            "Role Title", "Company", "Score", "Route", "Recruiter Email Discovered",
+            "Outreach Email Sent", "Tailored Resume Attached", "Apply Link", "Date",
         ]
         for col, h in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=h)
@@ -221,9 +224,11 @@ class ReportService:
                 app.get("title", ""),
                 app.get("company", ""),
                 app.get("score", ""),
-                app.get("to_email", "N/A"),
-                "✅" if app.get("email_sent") else "❌",
-                "✅" if app.get("resume_path") else "❌",
+                app.get("route", "Direct Application Link"),
+                app.get("to_email", "None (Direct Link)"),
+                "✅ SENT" if app.get("email_sent") else "Prepared (Link)",
+                "✅ Attached" if app.get("resume_path") else "❌",
+                app.get("job_url", ""),
                 app.get("date", date.today().strftime("%Y-%m-%d")),
             ]
             for col, val in enumerate(values, 1):
@@ -232,6 +237,6 @@ class ReportService:
                 if row_num % 2 == 0:
                     cell.fill = ALT_FILL
 
-        widths = [35, 25, 8, 35, 12, 18, 12]
+        widths = [35, 25, 8, 22, 32, 18, 22, 45, 12]
         for i, w in enumerate(widths, 1):
             ws.column_dimensions[get_column_letter(i)].width = w

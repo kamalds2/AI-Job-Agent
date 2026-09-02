@@ -307,7 +307,7 @@ class EmailService:
             msg["Subject"] = subject
             msg.attach(MIMEText(body, "plain"))
 
-            attachment = pdf_attachment_path or kwargs.get("attachment_path")
+            attachment = attachment_path or pdf_attachment_path or kwargs.get("attachment_path")
             if attachment and os.path.exists(attachment):
                 filename = os.path.basename(attachment)
                 maintype = "application"
@@ -318,9 +318,10 @@ class EmailService:
                     encoders.encode_base64(part)
                     part.add_header(
                         "Content-Disposition",
-                        f"attachment; filename={filename}",
+                        f'attachment; filename="{filename}"',
                     )
                     msg.attach(part)
+                    logger.info(f"Attached {filename} ({subtype}) to email")
 
             raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
             resp = httpx.post(
