@@ -6,6 +6,7 @@ Node flow:
 """
 import asyncio
 import logging
+import os
 import re
 from datetime import date, datetime
 
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.state import AgentState
 from app.config.settings import (
+    CANDIDATE_NAME,
     MATCH_SCORE_THRESHOLD,
     MAX_APPLICATIONS_PER_RUN,
     MOCK_SCORING,
