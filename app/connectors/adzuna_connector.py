@@ -32,16 +32,17 @@ ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
 ADZUNA_BASE = "https://api.adzuna.com/v1/api/jobs/in/search"
 
-# Targeted queries for Kamal's profile
+# Targeted queries tailored strictly for Kamal's profile (0-2 Yrs / 1+ Yrs)
 ADZUNA_QUERIES = [
-    {"what": "java backend developer",       "where": "India"},
-    {"what": "spring boot microservices",    "where": "India"},
-    {"what": "python backend engineer",      "where": "India"},
-    {"what": "aws cloud engineer",           "where": "India"},
-    {"what": "senior software engineer java","where": "India"},
-    {"what": "ai machine learning engineer", "where": "India"},
-    {"what": "java remote",                  "where": ""},     # Remote worldwide
-    {"what": "backend engineer remote",      "where": ""},
+    {"what": "junior java developer",             "where": "India"},
+    {"what": "java backend developer",            "where": "India"},
+    {"what": "spring boot developer",             "where": "India"},
+    {"what": "python backend developer",          "where": "India"},
+    {"what": "fastapi engineer",                  "where": "India"},
+    {"what": "associate software engineer java",  "where": "India"},
+    {"what": "aws cloud engineer",                "where": "India"},
+    {"what": "java backend remote",               "where": ""},
+    {"what": "python backend remote",             "where": ""},
 ]
 
 
@@ -70,7 +71,7 @@ class AdzunaConnector(BaseConnector):
                         "results_per_page": 20,
                         "what": query["what"],
                         "content-type": "application/json",
-                        "max_days_old": 14,
+                        "max_days_old": 3,  # Strict freshness: only jobs posted in last 3 days
                         "sort_by": "date",
                     }
                     if query.get("where"):
@@ -142,6 +143,10 @@ class AdzunaConnector(BaseConnector):
                         ).date()
                     except Exception:
                         pass
+
+                # Strict freshness: drop any postings older than 7 days
+                if posted_date and (date.today() - posted_date).days > 7:
+                    continue
 
                 description = job.get("description") or ""
                 is_remote = "remote" in (title + " " + description).lower()
