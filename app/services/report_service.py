@@ -130,11 +130,16 @@ class ReportService:
                 ws[f"A{i}"].fill = ALT_FILL
                 ws[f"B{i}"].fill = ALT_FILL
 
-        # Top 5 matches table
-        ws["A17"] = "🏆 Top Qualified Matches (0-2 Yrs Target)"
+        # All Eligible matches table
+        eligible_jobs = [j for j in scored_jobs if j.get("score", 0) >= 65]
+        if not eligible_jobs:
+            eligible_jobs = sorted(scored_jobs, key=lambda x: x.get("score", 0), reverse=True)
+        else:
+            eligible_jobs = sorted(eligible_jobs, key=lambda x: x.get("score", 0), reverse=True)
+
+        ws["A17"] = f"🏆 All Eligible Job Matches ({len(eligible_jobs)} Roles with 1-Click Apply Links)"
         ws["A17"].font = Font(bold=True, size=12)
 
-        top_jobs = sorted(scored_jobs, key=lambda x: x.get("score", 0), reverse=True)[:5]
         headers = ["Rank", "Title", "Company", "Score", "Action", "Apply Link"]
         for col, h in enumerate(headers, 1):
             cell = ws.cell(row=18, column=col, value=h)
@@ -142,7 +147,7 @@ class ReportService:
             cell.font = HEADER_FONT
             cell.border = thin_border
 
-        for rank, job in enumerate(top_jobs, 1):
+        for rank, job in enumerate(eligible_jobs, 1):
             row = 18 + rank
             score = job.get("score", 0)
             fill = GREEN_FILL if score >= 75 else YELLOW_FILL if score >= 65 else RED_FILL
