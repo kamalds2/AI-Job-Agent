@@ -85,12 +85,12 @@ class LinkedInFeedScanner:
             )
             page = await context.new_page()
             await page.goto("https://www.linkedin.com/login")
-            print("⏳ Waiting for login... (Once you see your feed, you can close the browser or wait)")
+            print("[WAITING] Waiting for login... (Once you see your feed, you can close the browser or wait)")
             try:
                 await page.wait_for_url("**/feed/**", timeout=120000)
-                print("✅ Successfully logged in! LinkedIn session saved.")
+                print("[OK] Successfully logged in! LinkedIn session saved.")
             except Exception:
-                print("⚠️ Timeout or closed. Any saved session cookies are preserved.")
+                print("[NOTE] Browser closed or session saved. Preserving cookies.")
             await context.close()
 
     async def scan_posts_and_outreach(self, dry_run: bool = False, use_browser: bool = True) -> dict:
