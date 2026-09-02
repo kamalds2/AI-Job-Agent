@@ -63,6 +63,36 @@ class LinkedInFeedScanner:
         self.resume_service = ResumeService()
         self.report_service = ReportService()
 
+    async def open_login_window(self):
+        """Open a visible browser window to let user log into LinkedIn once."""
+        from playwright.async_api import async_playwright
+        session_dir = os.path.join(os.path.expanduser("~"), ".ai_job_agent_linkedin_session")
+        os.makedirs(session_dir, exist_ok=True)
+
+        print("\n" + "=" * 65)
+        print("  [LINKEDIN LOGIN ASSISTANT]")
+        print("=" * 65)
+        print("  Opening browser window to LinkedIn...")
+        print("  Please log into your LinkedIn account in the browser.")
+        print("  Your login session will be saved for all automated agent runs.")
+        print("=" * 65 + "\n")
+
+        async with async_playwright() as p:
+            context = await p.chromium.launch_persistent_context(
+                user_data_dir=session_dir,
+                headless=False,
+                args=["--start-maximized"],
+            )
+            page = await context.new_page()
+            await page.goto("https://www.linkedin.com/login")
+            print("⏳ Waiting for login... (Once you see your feed, you can close the browser or wait)")
+            try:
+                await page.wait_for_url("**/feed/**", timeout=120000)
+                print("✅ Successfully logged in! LinkedIn session saved.")
+            except Exception:
+                print("⚠️ Timeout or closed. Any saved session cookies are preserved.")
+            await context.close()
+
     async def scan_posts_and_outreach(self, dry_run: bool = False, use_browser: bool = True) -> dict:
         """
         Scan LinkedIn hiring posts, extract genuine recruiter emails,
@@ -256,22 +286,43 @@ AI Job Agent Orchestrator
         """Use Playwright to scan LinkedIn feed & hiring posts from user's logged-in session."""
         posts = []
         try:
+            import shutil
             from playwright.async_api import async_playwright
             user_chrome_dir = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data")
             session_dir = os.path.join(os.path.expanduser("~"), ".ai_job_agent_linkedin_session")
+            os.makedirs(session_dir, exist_ok=True)
+
+            # Auto-sync Chrome cookies / storage if session directory is fresh
+            for profile_name in ["Profile 5", "Profile 7", "Default"]:
+                profile_src = os.path.join(user_chrome_dir, profile_name)
+                if os.path.exists(profile_src):
+                    try:
+                        cookie_file = os.path.join(profile_src, "Network", "Cookies")
+                        dest_network = os.path.join(session_dir, "Default", "Network")
+                        if os.path.exists(cookie_file) and not os.path.exists(os.path.join(dest_network, "Cookies")):
+                            os.makedirs(dest_network, exist_ok=True)
+                            shutil.copy2(cookie_file, os.path.join(dest_network, "Cookies"))
+                    except Exception:
+                        pass
 
             async with async_playwright() as p:
-                logger.info("🌐 [LinkedIn Browser] Launching browser to scan https://www.linkedin.com/feed/ ...")
-                
-                # Launch persistent browser context
-                context = await p.chromium.launch_persistent_context(
-                    user_data_dir=session_dir,
-                    headless=True,
-                    args=[
-                        "--disable-blink-features=AutomationControlled",
-                        "--start-maximized",
-                    ],
-                )
+                context = None
+                # Try connecting to active Chrome browser via CDP first
+                try:
+                    browser = await p.chromium.connect_over_cdp("http://127.0.0.1:9222", timeout=2000)
+                    context = browser.contexts[0] if browser.contexts else await browser.new_context()
+                    logger.info("⚡ [LinkedIn Browser] Connected to active Chrome browser session via CDP!")
+                except Exception:
+                    logger.info("🌐 [LinkedIn Browser] Launching dedicated browser context for https://www.linkedin.com/feed/ ...")
+                    context = await p.chromium.launch_persistent_context(
+                        user_data_dir=session_dir,
+                        headless=True,
+                        args=[
+                            "--disable-blink-features=AutomationControlled",
+                            "--start-maximized",
+                        ],
+                    )
+
                 page = await context.new_page()
                 await page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded", timeout=20000)
                 await asyncio.sleep(3)

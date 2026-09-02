@@ -25,7 +25,16 @@ logger = logging.getLogger(__name__)
 async def main():
     parser = argparse.ArgumentParser(description="LinkedIn Recruiter & HR Email Agent")
     parser.add_argument("--dry-run", action="store_true", help="Run without sending emails")
+    parser.add_argument("--login", action="store_true", help="Open browser to log into LinkedIn once and save session")
     args = parser.parse_args()
+
+    from app.services.linkedin_feed_scanner import LinkedInFeedScanner
+
+    scanner = LinkedInFeedScanner()
+
+    if args.login:
+        await scanner.open_login_window()
+        return
 
     print("\n" + "=" * 65)
     print("  [LINKEDIN RECRUITER & HR EMAIL OUTREACH AGENT]")
@@ -34,9 +43,6 @@ async def main():
         print("  [DRY RUN MODE] No emails will be sent")
     print("=" * 65 + "\n")
 
-    from app.services.linkedin_feed_scanner import LinkedInFeedScanner
-
-    scanner = LinkedInFeedScanner()
     result = await scanner.scan_posts_and_outreach(dry_run=args.dry_run)
 
     print("\n" + "=" * 65)
