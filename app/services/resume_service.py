@@ -195,47 +195,55 @@ class ResumeService:
         job_description: str,
     ) -> dict:
         """
-        Extract key technical skills from job description and construct a customized
-        ATS resume data payload specifically aligned to the target job.
+        Construct clean, ATS-optimized resume data strictly aligned to the candidate's
+        authentic master profile and skills (Java, Spring Boot, Microservices, Python, Generative AI).
         """
         jd_lower = (job_title + " " + job_description).lower()
 
-        # Skill extraction
-        candidate_skills = [
-            "Java", "Spring Boot", "Microservices", "Python", "FastAPI",
-            "REST API", "AWS", "Docker", "Kubernetes", "SQL", "PostgreSQL",
-            "MySQL", "AI Agents", "LangChain", "Git", "CI/CD", "JUnit",
-        ]
-        matched_skills = [s for s in candidate_skills if s.lower() in jd_lower]
-        if not matched_skills:
-            matched_skills = ["Java", "Spring Boot", "Python", "REST API", "AWS", "SQL"]
-
+        # Tailor summary seamlessly without artificial target tags
         summary = (
-            f"Results-driven Software Engineer (0-2 years) specializing in {', '.join(matched_skills[:4])}. "
-            f"Proven expertise building scalable backend services, RESTful APIs, and cloud applications. "
-            f"Demonstrated success delivering robust, high-performance solutions tailored for {company}."
-        )
-
-        tailored_bullets = [
-            f"Architected and deployed enterprise backend microservices utilizing {matched_skills[0]} and {matched_skills[1] if len(matched_skills) > 1 else 'Spring Boot'}, improving API response times by 35%.",
-            f"Developed secure, stateless RESTful APIs with {matched_skills[2] if len(matched_skills) > 2 else 'FastAPI'}, ensuring seamless integration across distributed components.",
-            f"Containerized application services using Docker & Kubernetes and deployed to AWS cloud infrastructure with automated CI/CD pipelines.",
-            f"Engineered optimized SQL queries and database schemas in PostgreSQL/MySQL, reducing database latency for high-concurrency requests.",
-            f"Implemented automated testing frameworks (JUnit/pytest) maintaining 90%+ code coverage across critical business endpoints.",
-            f"Collaborated within Agile/Scrum sprint cycles to deliver clean, maintainable code adhering to software engineering best practices.",
-        ]
-
-        cover_intro = (
-            f"I am writing to express my strong interest in the {job_title} position at {company}. "
-            f"With hands-on experience developing microservices with {', '.join(matched_skills[:3])}, "
-            f"I am eager to contribute to your engineering team."
+            "Ambitious AI Application Developer and Software Engineer transitioning a strong Java Full Stack foundation "
+            "into advanced Generative AI and LLM development. Hands-on experience building AI Agents, workflow automations, "
+            "and intelligent conversational tools using Claude, OpenAI, and prompt engineering. Combines 1.5 years of "
+            "professional backend experience (Java, Spring Boot, REST APIs) with a deep passion for building scalable, "
+            "AI-assisted platforms and Agent-based AI architectures."
         )
 
         return {
             "summary": summary,
-            "key_skills": matched_skills,
-            "tailored_bullets": tailored_bullets,
-            "cover_letter_intro": cover_intro,
+            "skills": {
+                "ai": "Generative AI, Large Language Models (Claude, OpenAI), Prompt Engineering, Agent-based AI",
+                "backend": "Java, Spring Boot, RESTful APIs, Micro-services, Python (Exposure)",
+                "automation": "Workflow Orchestration, AI API Integration, Conversational AI, Speech-to-Text",
+                "databases": "MySQL, PostgreSQL concepts, Git, GitHub, Postman, AWS Cloud Fundamentals",
+            },
+            "experience_bullets": [
+                "Built and maintained scalable backend systems utilizing Java and Spring Boot, establishing a robust micro-services architecture to support enterprise applications.",
+                "Designed secure RESTful APIs to handle high-throughput data processing, facilitating smooth integration points for future AI and automation workflows.",
+                "Optimized complex relational database queries to reduce data synchronization latency by 20%, ensuring fast response times critical for real-time applications.",
+                "Continuously upskilled in Generative AI, applying prompt engineering and LLM integrations to prototype automated reporting and intelligent system features.",
+            ],
+            "projects": [
+                {
+                    "title": "Agentic AI Job Application Bot | github.com/kamalds2/AI-Job-Agent",
+                    "bullets": [
+                        "Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).",
+                        "Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.",
+                    ],
+                },
+                {
+                    "title": "24/7 AI Voice Assistant | Conversational AI & API Integration",
+                    "bullets": [
+                        "Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.",
+                    ],
+                },
+                {
+                    "title": "McLean (Enterprise Facility System) | Java Spring Boot & REST APIs",
+                    "bullets": [
+                        "Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards, utilizing secure JWT authentication.",
+                    ],
+                },
+            ],
         }
 
     def generate_pdf(
@@ -246,117 +254,204 @@ class ResumeService:
         tailored_data: dict,
     ) -> str:
         """
-        Generate a clean, professional ATS-friendly tailored PDF resume.
-        Returns path to generated PDF.
+        Generate an exact, 1-page professional ATS PDF resume matching the candidate's authentic template.
+        Uses exact contact details (+91-9398872099, Hyderabad) with zero artificial 'Target' tags.
         """
+        from reportlab.platypus import Table, TableStyle
+
         safe_company = re.sub(r"[^\w]", "_", company)[:25]
         safe_title = re.sub(r"[^\w]", "_", job_title)[:25]
-        filename = f"Resume_{CANDIDATE_NAME.replace(' ', '_')}_{safe_company}_{safe_title}_job{job_id}.pdf"
+        filename = f"Resume_Kamal_Kumar_{safe_company}_{safe_title}_job{job_id}.pdf"
         output_path = self.resumes_dir / filename
 
         doc = SimpleDocTemplate(
             str(output_path),
             pagesize=A4,
-            rightMargin=1.2 * cm,
-            leftMargin=1.2 * cm,
-            topMargin=1.2 * cm,
-            bottomMargin=1.2 * cm,
+            rightMargin=1.0 * cm,
+            leftMargin=1.0 * cm,
+            topMargin=0.8 * cm,
+            bottomMargin=0.8 * cm,
         )
 
         styles = getSampleStyleSheet()
 
         name_style = ParagraphStyle(
-            "Name",
-            parent=styles["Title"],
-            fontSize=16,
+            "NameStyle",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=15,
+            leading=18,
             textColor=colors.HexColor("#111827"),
-            spaceAfter=2,
             alignment=1,  # Centered
+            spaceAfter=2,
+        )
+        tagline_style = ParagraphStyle(
+            "TaglineStyle",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#1e293b"),
+            alignment=1,
+            spaceAfter=2,
         )
         contact_style = ParagraphStyle(
-            "Contact",
+            "ContactStyle",
             parent=styles["Normal"],
-            fontSize=8.5,
+            fontName="Helvetica",
+            fontSize=7.8,
+            leading=10,
             textColor=colors.HexColor("#374151"),
-            spaceAfter=6,
             alignment=1,
-        )
-        target_style = ParagraphStyle(
-            "TargetStyle",
-            parent=styles["Normal"],
-            fontSize=9,
-            textColor=colors.HexColor("#1d4ed8"),
-            spaceAfter=6,
-            alignment=1,
+            spaceAfter=1,
         )
         section_header = ParagraphStyle(
             "SectionHeader",
-            parent=styles["Heading2"],
-            fontSize=10.5,
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=9.2,
+            leading=12,
             textColor=colors.HexColor("#0f172a"),
-            spaceBefore=8,
-            spaceAfter=4,
+            spaceBefore=4,
+            spaceAfter=2,
         )
-        normal = ParagraphStyle(
-            "CustomNormal",
+        body_style = ParagraphStyle(
+            "BodyTextCustom",
             parent=styles["Normal"],
-            fontSize=8.5,
-            leading=13,
-            textColor=colors.HexColor("#1e293b"),
-            spaceAfter=3,
-        )
-        bullet_style = ParagraphStyle(
-            "Bullet",
-            parent=styles["Normal"],
-            fontSize=8.5,
-            leading=12.5,
-            leftIndent=10,
+            fontName="Helvetica",
+            fontSize=7.8,
+            leading=10.5,
             textColor=colors.HexColor("#1e293b"),
             spaceAfter=2,
+        )
+        bullet_style = ParagraphStyle(
+            "BulletCustom",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7.6,
+            leading=10,
+            leftIndent=8,
+            textColor=colors.HexColor("#1e293b"),
+            spaceAfter=1.5,
+        )
+        item_title_left = ParagraphStyle(
+            "ItemTitleLeft",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8.0,
+            leading=10.5,
+            textColor=colors.HexColor("#0f172a"),
+        )
+        item_title_right = ParagraphStyle(
+            "ItemTitleRight",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7.8,
+            leading=10.5,
+            alignment=2,  # Right-aligned
+            textColor=colors.HexColor("#475569"),
         )
 
         story = []
 
-        # ── Header ────────────────────────────────────────────────
-        story.append(Paragraph(f"<b>{CANDIDATE_NAME}</b>", name_style))
-        story.append(Paragraph("Email: kamalkumar.doddi@gmail.com | Phone: +91 6304883114 | Location: Hyderabad, India", contact_style))
-        story.append(Paragraph(f"LinkedIn: linkedin.com/in/kamal-kumar-doddi | GitHub: github.com/kamalds2", contact_style))
-        story.append(Paragraph(f"<b>Target Application:</b> {job_title} @ {company}", target_style))
-        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#0f172a")))
-        story.append(Spacer(1, 4))
+        # ── 1. Header ─────────────────────────────────────────────
+        story.append(Paragraph("<b>DODDI KAMAL KUMAR</b>", name_style))
+        story.append(Paragraph("<b>AI Application Developer | Java Backend | Generative AI | LLMs | Agentic Workflows</b>", tagline_style))
+        story.append(Paragraph("Hyderabad, Telangana &nbsp;|&nbsp; +91-9398872099 &nbsp;|&nbsp; kamalkumar.doddi@gmail.com", contact_style))
+        story.append(Paragraph("LinkedIn: linkedin.com/in/kamal-doddi-6422b7279 &nbsp;|&nbsp; GitHub: github.com/kamalds2", contact_style))
+        story.append(Spacer(1, 2))
+        story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#0f172a"), spaceAfter=3))
 
-        # ── Professional Summary ──────────────────────────────────
-        if summary := tailored_data.get("summary"):
-            story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", section_header))
-            story.append(Paragraph(summary, normal))
-            story.append(Spacer(1, 4))
+        # ── 2. Professional Summary ───────────────────────────────
+        story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", section_header))
+        summary_text = tailored_data.get("summary") or (
+            "Ambitious AI Application Developer and Software Engineer transitioning a strong Java Full Stack foundation into advanced Generative AI and "
+            "LLM development. Hands-on experience building AI Agents, workflow automations, and intelligent conversational tools using Claude, OpenAI, "
+            "and prompt engineering. Combines 1.5 years of professional backend experience (Java, Spring Boot, REST APIs) with a deep passion for "
+            "building scalable, AI-assisted platforms and Agent-based AI architectures."
+        )
+        story.append(Paragraph(summary_text, body_style))
 
-        # ── Key Skills ────────────────────────────────────────────
-        if skills := tailored_data.get("key_skills"):
-            story.append(Paragraph("<b>CORE TECHNICAL SKILLS</b>", section_header))
-            skills_text = " • ".join(skills)
-            story.append(Paragraph(f"<b>Languages & Frameworks:</b> {skills_text}", normal))
-            story.append(Paragraph("<b>Cloud & Tools:</b> AWS, Docker, Kubernetes, Git, CI/CD, REST APIs, Microservices, SQL", normal))
-            story.append(Spacer(1, 4))
+        # ── 3. Technical Skills ───────────────────────────────────
+        story.append(Paragraph("<b>TECHNICAL SKILLS</b>", section_header))
+        story.append(Paragraph("<b>AI & LLM Technologies:</b> Generative AI, Large Language Models (Claude, OpenAI), Prompt Engineering, Agent-based AI", body_style))
+        story.append(Paragraph("<b>Backend & APIs:</b> Java, Spring Boot, RESTful APIs, Micro-services, Python (Exposure)", body_style))
+        story.append(Paragraph("<b>Automation & Integrations:</b> Workflow Orchestration, AI API Integration, Conversational AI, Speech-to-Text", body_style))
+        story.append(Paragraph("<b>Databases & Tools:</b> MySQL, PostgreSQL concepts, Git, GitHub, Postman, AWS Cloud Fundamentals", body_style))
 
-        # ── Tailored Experience & Accomplishments ────────────────
-        story.append(Paragraph("<b>PROFESSIONAL EXPERIENCE & HIGHLIGHTS</b>", section_header))
-        story.append(Paragraph(f"<b>Software Engineer (0-2 Yrs Target)</b> | AI & Backend Engineering", normal))
+        # ── 4. Professional Experience ────────────────────────────
+        story.append(Paragraph("<b>PROFESSIONAL EXPERIENCE</b>", section_header))
+        exp_table = Table(
+            [
+                [
+                    Paragraph("<b>Software Engineer (Backend & AI Integration)</b> | Siri IT Innovations, Hyderabad", item_title_left),
+                    Paragraph("Jan 2025 – June 2026", item_title_right),
+                ]
+            ],
+            colWidths=[14.0 * cm, 4.8 * cm],
+        )
+        exp_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(exp_table)
 
-        if bullets := tailored_data.get("tailored_bullets"):
-            for bullet in bullets[:7]:
-                text_b = bullet if bullet.startswith("•") else f"• {bullet}"
-                story.append(Paragraph(text_b, bullet_style))
-            story.append(Spacer(1, 4))
+        exp_bullets = tailored_data.get("experience_bullets") or [
+            "Built and maintained scalable backend systems utilizing Java and Spring Boot, establishing a robust micro-services architecture to support enterprise applications.",
+            "Designed secure RESTful APIs to handle high-throughput data processing, facilitating smooth integration points for future AI and automation workflows.",
+            "Optimized complex relational database queries to reduce data synchronization latency by 20%, ensuring fast response times critical for real-time applications.",
+            "Continuously upskilled in Generative AI, applying prompt engineering and LLM integrations to prototype automated reporting and intelligent system features.",
+        ]
+        for bullet in exp_bullets:
+            b_text = bullet if bullet.startswith("•") else f"• {bullet}"
+            story.append(Paragraph(b_text, bullet_style))
 
-        # ── Education & Training ─────────────────────────────────
+        # ── 5. Project Portfolio ──────────────────────────────────
+        story.append(Paragraph("<b>PROJECT PORTFOLIO</b>", section_header))
+
+        # Project 1
+        story.append(Paragraph("<b>Agentic AI Job Application Bot</b> | github.com/kamalds2/AI-Job-Agent", item_title_left))
+        story.append(Paragraph("• Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).", bullet_style))
+        story.append(Paragraph("• Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.", bullet_style))
+
+        # Project 2
+        story.append(Paragraph("<b>24/7 AI Voice Assistant</b> | Conversational AI & API Integration", item_title_left))
+        story.append(Paragraph("• Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.", bullet_style))
+
+        # Project 3
+        story.append(Paragraph("<b>McLean (Enterprise Facility System)</b> | Java Spring Boot & REST APIs", item_title_left))
+        story.append(Paragraph("• Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards, utilizing secure JWT authentication.", bullet_style))
+
+        # ── 6. Education & Certifications ─────────────────────────
         story.append(Paragraph("<b>EDUCATION & CERTIFICATIONS</b>", section_header))
-        story.append(Paragraph("<b>Bachelor of Technology (B.Tech) in Computer Science & Engineering</b>", normal))
-        story.append(Paragraph("Certified AWS Cloud Practitioner & Java Backend Specialization", normal))
+        edu_table = Table(
+            [
+                [
+                    Paragraph("<b>Certified Full Stack Java Developer</b> | KodNest Technologies", item_title_left),
+                    Paragraph("End-to-End Training", item_title_right),
+                ],
+                [
+                    Paragraph("<b>B.Tech in Computer Science & Engineering</b> | Siddhartha Institute of Technology and Sciences", item_title_left),
+                    Paragraph("2019 – 2023", item_title_right),
+                ],
+            ],
+            colWidths=[14.0 * cm, 4.8 * cm],
+        )
+        edu_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(edu_table)
 
         # Build PDF
         doc.build(story)
-        logger.info(f"📄 Generated ATS Tailored PDF: {output_path}")
+        logger.info(f"📄 Generated ATS Authentic PDF: {output_path}")
         return str(output_path)
 
     def create_tailored_resume(
@@ -367,8 +462,8 @@ class ResumeService:
         job_description: str,
     ) -> str:
         """
-        Full pipeline: generate tailored resume data → create customized ATS PDF.
-        Guarantees 100% unique tailored PDF per job application.
+        Full pipeline: generate tailored resume data → create authentic 1-page PDF.
+        Guarantees 100% clean formatting identical to the master resume template.
         """
         try:
             tailored_data = self.tailor_resume(job_id, job_title, company, job_description)
@@ -379,7 +474,7 @@ class ResumeService:
             return pdf_path
 
         except Exception as e:
-            logger.warning(f"Tailoring failed for job {job_id} ({e}) — generating dynamic ATS PDF")
+            logger.warning(f"Tailoring failed for job {job_id} ({e}) — generating dynamic authentic PDF")
             fallback_data = self._generate_fallback_tailored_data(job_title, company, job_description)
             return self.generate_pdf(job_id, job_title, company, fallback_data)
 

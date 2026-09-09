@@ -53,9 +53,9 @@ REPORTS_DIR: Path = BASE_DIR / "reports"
 LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 
 # ── Candidate Profile (for AI scoring context) ────────────
-CANDIDATE_NAME: str = os.getenv("CANDIDATE_NAME", "Kamal Kumar")
-CANDIDATE_PHONE: str = os.getenv("CANDIDATE_PHONE", "+916304883114")
-CANDIDATE_LINKEDIN: str = os.getenv("CANDIDATE_LINKEDIN", "https://linkedin.com/in/kamal-kumar-doddi")
+CANDIDATE_NAME: str = os.getenv("CANDIDATE_NAME", "Doddi Kamal Kumar")
+CANDIDATE_PHONE: str = os.getenv("CANDIDATE_PHONE", "+91-9398872099")
+CANDIDATE_LINKEDIN: str = os.getenv("CANDIDATE_LINKEDIN", "https://linkedin.com/in/kamal-doddi-6422b7279")
 CANDIDATE_GITHUB: str = os.getenv("CANDIDATE_GITHUB", "https://github.com/kamalds2")
 CANDIDATE_EXPERIENCE_YEARS: str = os.getenv("CANDIDATE_EXPERIENCE_YEARS", "0-2 years")
 CANDIDATE_TARGET_ROLES: list[str] = [

@@ -54,10 +54,15 @@ def build_email_user_prompt(
 
 ## Instructions
 - Greeting: "{recruiter_greeting},"
-- Sender Name: Kamal Kumar (kamalkumar.doddi@gmail.com)
+- Sender Name: Doddi Kamal Kumar (kamalkumar.doddi@gmail.com | +91-9398872099)
 - Draft the email tailored strictly according to what the JD is asking for.
 - State experience accurately as 1+ years / early-career backend & software engineer.
 - DO NOT mention match score or any numerical score in the email.
+- Sign off with:
+  Best regards,
+  Doddi Kamal Kumar
+  kamalkumar.doddi@gmail.com
+  +91-9398872099
 - Return JSON only.
 """
 
