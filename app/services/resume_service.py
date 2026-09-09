@@ -195,55 +195,118 @@ class ResumeService:
         job_description: str,
     ) -> dict:
         """
-        Construct clean, ATS-optimized resume data strictly aligned to the candidate's
-        authentic master profile and skills (Java, Spring Boot, Microservices, Python, Generative AI).
+        Extract required skills from JD and dynamically infuse them into the candidate's
+        skills, summary, experience bullets, and project portfolio.
         """
-        jd_lower = (job_title + " " + job_description).lower()
+        text_corpus = (job_title + " " + job_description).lower()
 
-        # Tailor summary seamlessly without artificial target tags
+        # ── 1. Match Backend & API Skills ─────────────────────────
+        backend_pool = [
+            ("Java", "Java 17/21"), ("Spring Boot", "Spring Boot 3"), ("Microservices", "Microservices Architecture"),
+            ("REST", "RESTful APIs"), ("Python", "Python (FastAPI)"), ("Hibernate", "Hibernate/JPA"),
+            ("Spring Cloud", "Spring Cloud"), ("FastAPI", "FastAPI"), ("Django", "Django/Flask"),
+            ("Kafka", "Apache Kafka"), ("RabbitMQ", "RabbitMQ"), ("GraphQL", "GraphQL"),
+        ]
+        matched_backend = [label for key, label in backend_pool if key.lower() in text_corpus]
+        if not matched_backend:
+            matched_backend = ["Java", "Spring Boot", "RESTful APIs", "Micro-services", "Python (Exposure)"]
+        else:
+            # Always ensure base core is present
+            if "Java" not in " ".join(matched_backend):
+                matched_backend.insert(0, "Java")
+            if "Spring Boot" not in " ".join(matched_backend):
+                matched_backend.insert(1, "Spring Boot")
+        backend_skills_str = ", ".join(dict.fromkeys(matched_backend))
+
+        # ── 2. Match AI & LLM Skills ──────────────────────────────
+        ai_pool = [
+            ("Generative AI", "Generative AI"), ("LLM", "Large Language Models (Claude, OpenAI)"),
+            ("Prompt Engineering", "Prompt Engineering"), ("Agent", "Agent-based AI"),
+            ("LangChain", "LangChain"), ("LangGraph", "LangGraph"), ("RAG", "RAG Architectures"),
+            ("OpenAI", "OpenAI API"), ("Claude", "Claude API"),
+        ]
+        matched_ai = [label for key, label in ai_pool if key.lower() in text_corpus]
+        if not matched_ai:
+            matched_ai = ["Generative AI", "Large Language Models (Claude, OpenAI)", "Prompt Engineering", "Agent-based AI"]
+        ai_skills_str = ", ".join(dict.fromkeys(matched_ai))
+
+        # ── 3. Match Database, Cloud & DevOps Skills ──────────────
+        db_pool = [
+            ("AWS", "AWS Cloud"), ("PostgreSQL", "PostgreSQL"), ("MySQL", "MySQL"),
+            ("Docker", "Docker"), ("Kubernetes", "Kubernetes"), ("Redis", "Redis"),
+            ("MongoDB", "MongoDB"), ("SQL", "SQL Optimization"), ("CI/CD", "CI/CD Pipelines"),
+            ("Git", "Git/GitHub"), ("Postman", "Postman"),
+        ]
+        matched_db = [label for key, label in db_pool if key.lower() in text_corpus]
+        if not matched_db:
+            matched_db = ["MySQL", "PostgreSQL concepts", "Git", "GitHub", "Postman", "AWS Cloud Fundamentals"]
+        db_skills_str = ", ".join(dict.fromkeys(matched_db))
+
+        # ── 4. Match Automation & Integrations ────────────────────
+        automation_pool = [
+            ("Workflow", "Workflow Orchestration"), ("Integration", "AI API Integration"),
+            ("Conversational", "Conversational AI"), ("Voice", "Speech-to-Text"),
+            ("JWT", "JWT / OAuth2 Security"), ("Automation", "Automation Pipelines"),
+        ]
+        matched_auto = [label for key, label in automation_pool if key.lower() in text_corpus]
+        if not matched_auto:
+            matched_auto = ["Workflow Orchestration", "AI API Integration", "Conversational AI", "Speech-to-Text"]
+        auto_skills_str = ", ".join(dict.fromkeys(matched_auto))
+
+        # ── 5. Tailored Summary ───────────────────────────────────
+        top_focus = matched_backend[:3] + matched_ai[:2]
+        focus_str = ", ".join(top_focus[:4])
         summary = (
-            "Ambitious AI Application Developer and Software Engineer transitioning a strong Java Full Stack foundation "
-            "into advanced Generative AI and LLM development. Hands-on experience building AI Agents, workflow automations, "
-            "and intelligent conversational tools using Claude, OpenAI, and prompt engineering. Combines 1.5 years of "
-            "professional backend experience (Java, Spring Boot, REST APIs) with a deep passion for building scalable, "
-            "AI-assisted platforms and Agent-based AI architectures."
+            f"Ambitious AI Application Developer and Software Engineer with 1.5 years of hands-on experience specializing in {focus_str}. "
+            f"Strong Java Full Stack and backend foundation transitioning into advanced Generative AI, agentic workflow automations, and LLM development. "
+            f"Demonstrated ability to architect high-throughput REST APIs, optimize database operations, and build intelligent AI-powered solutions tailored for {company}."
         )
+
+        # ── 6. Tailored Experience Bullets ────────────────────────
+        primary_backend = matched_backend[0] if matched_backend else "Java"
+        sec_backend = matched_backend[1] if len(matched_backend) > 1 else "Spring Boot"
+        db_lead = matched_db[0] if matched_db else "relational database"
+
+        exp_bullets = [
+            f"Built and maintained scalable backend systems utilizing {primary_backend} and {sec_backend}, establishing a robust micro-services architecture to support enterprise applications.",
+            f"Designed secure RESTful APIs to handle high-throughput data processing, facilitating smooth integration points for future AI and automation workflows.",
+            f"Optimized complex {db_lead} queries to reduce data synchronization latency by 20%, ensuring fast response times critical for real-time applications.",
+            f"Continuously upskilled in Generative AI, applying prompt engineering and LLM integrations to prototype automated reporting and intelligent system features.",
+        ]
+
+        # ── 7. Tailored Projects ──────────────────────────────────
+        projects = [
+            {
+                "title": "Agentic AI Job Application Bot | github.com/kamalds2/AI-Job-Agent",
+                "bullets": [
+                    "Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).",
+                    "Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.",
+                ],
+            },
+            {
+                "title": "24/7 AI Voice Assistant | Conversational AI & API Integration",
+                "bullets": [
+                    "Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.",
+                ],
+            },
+            {
+                "title": f"McLean (Enterprise Facility System) | {primary_backend} {sec_backend} & REST APIs",
+                "bullets": [
+                    f"Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards using {primary_backend} and secure JWT authentication.",
+                ],
+            },
+        ]
 
         return {
             "summary": summary,
             "skills": {
-                "ai": "Generative AI, Large Language Models (Claude, OpenAI), Prompt Engineering, Agent-based AI",
-                "backend": "Java, Spring Boot, RESTful APIs, Micro-services, Python (Exposure)",
-                "automation": "Workflow Orchestration, AI API Integration, Conversational AI, Speech-to-Text",
-                "databases": "MySQL, PostgreSQL concepts, Git, GitHub, Postman, AWS Cloud Fundamentals",
+                "ai": ai_skills_str,
+                "backend": backend_skills_str,
+                "automation": auto_skills_str,
+                "databases": db_skills_str,
             },
-            "experience_bullets": [
-                "Built and maintained scalable backend systems utilizing Java and Spring Boot, establishing a robust micro-services architecture to support enterprise applications.",
-                "Designed secure RESTful APIs to handle high-throughput data processing, facilitating smooth integration points for future AI and automation workflows.",
-                "Optimized complex relational database queries to reduce data synchronization latency by 20%, ensuring fast response times critical for real-time applications.",
-                "Continuously upskilled in Generative AI, applying prompt engineering and LLM integrations to prototype automated reporting and intelligent system features.",
-            ],
-            "projects": [
-                {
-                    "title": "Agentic AI Job Application Bot | github.com/kamalds2/AI-Job-Agent",
-                    "bullets": [
-                        "Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).",
-                        "Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.",
-                    ],
-                },
-                {
-                    "title": "24/7 AI Voice Assistant | Conversational AI & API Integration",
-                    "bullets": [
-                        "Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.",
-                    ],
-                },
-                {
-                    "title": "McLean (Enterprise Facility System) | Java Spring Boot & REST APIs",
-                    "bullets": [
-                        "Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards, utilizing secure JWT authentication.",
-                    ],
-                },
-            ],
+            "experience_bullets": exp_bullets,
+            "projects": projects,
         }
 
     def generate_pdf(
@@ -255,7 +318,7 @@ class ResumeService:
     ) -> str:
         """
         Generate an exact, 1-page professional ATS PDF resume matching the candidate's authentic template.
-        Uses exact contact details (+91-9398872099, Hyderabad) with zero artificial 'Target' tags.
+        Dynamically incorporates skills and technologies required by the JD.
         """
         from reportlab.platypus import Table, TableStyle
 
@@ -372,12 +435,18 @@ class ResumeService:
         )
         story.append(Paragraph(summary_text, body_style))
 
-        # ── 3. Technical Skills ───────────────────────────────────
+        # ── 3. Technical Skills (Dynamic per JD) ───────────────────
+        skills_data = tailored_data.get("skills") if isinstance(tailored_data.get("skills"), dict) else {}
+        ai_skills = skills_data.get("ai") or "Generative AI, Large Language Models (Claude, OpenAI), Prompt Engineering, Agent-based AI"
+        backend_skills = skills_data.get("backend") or "Java, Spring Boot, RESTful APIs, Micro-services, Python (Exposure)"
+        automation_skills = skills_data.get("automation") or "Workflow Orchestration, AI API Integration, Conversational AI, Speech-to-Text"
+        db_skills = skills_data.get("databases") or "MySQL, PostgreSQL concepts, Git, GitHub, Postman, AWS Cloud Fundamentals"
+
         story.append(Paragraph("<b>TECHNICAL SKILLS</b>", section_header))
-        story.append(Paragraph("<b>AI & LLM Technologies:</b> Generative AI, Large Language Models (Claude, OpenAI), Prompt Engineering, Agent-based AI", body_style))
-        story.append(Paragraph("<b>Backend & APIs:</b> Java, Spring Boot, RESTful APIs, Micro-services, Python (Exposure)", body_style))
-        story.append(Paragraph("<b>Automation & Integrations:</b> Workflow Orchestration, AI API Integration, Conversational AI, Speech-to-Text", body_style))
-        story.append(Paragraph("<b>Databases & Tools:</b> MySQL, PostgreSQL concepts, Git, GitHub, Postman, AWS Cloud Fundamentals", body_style))
+        story.append(Paragraph(f"<b>AI & LLM Technologies:</b> {ai_skills}", body_style))
+        story.append(Paragraph(f"<b>Backend & APIs:</b> {backend_skills}", body_style))
+        story.append(Paragraph(f"<b>Automation & Integrations:</b> {automation_skills}", body_style))
+        story.append(Paragraph(f"<b>Databases & Tools:</b> {db_skills}", body_style))
 
         # ── 4. Professional Experience ────────────────────────────
         story.append(Paragraph("<b>PROFESSIONAL EXPERIENCE</b>", section_header))
@@ -405,25 +474,41 @@ class ResumeService:
             "Optimized complex relational database queries to reduce data synchronization latency by 20%, ensuring fast response times critical for real-time applications.",
             "Continuously upskilled in Generative AI, applying prompt engineering and LLM integrations to prototype automated reporting and intelligent system features.",
         ]
-        for bullet in exp_bullets:
+        for bullet in exp_bullets[:4]:
             b_text = bullet if bullet.startswith("•") else f"• {bullet}"
             story.append(Paragraph(b_text, bullet_style))
 
         # ── 5. Project Portfolio ──────────────────────────────────
         story.append(Paragraph("<b>PROJECT PORTFOLIO</b>", section_header))
 
-        # Project 1
-        story.append(Paragraph("<b>Agentic AI Job Application Bot</b> | github.com/kamalds2/AI-Job-Agent", item_title_left))
-        story.append(Paragraph("• Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).", bullet_style))
-        story.append(Paragraph("• Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.", bullet_style))
+        projects_list = tailored_data.get("projects") or [
+            {
+                "title": "Agentic AI Job Application Bot | github.com/kamalds2/AI-Job-Agent",
+                "bullets": [
+                    "Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).",
+                    "Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.",
+                ],
+            },
+            {
+                "title": "24/7 AI Voice Assistant | Conversational AI & API Integration",
+                "bullets": [
+                    "Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.",
+                ],
+            },
+            {
+                "title": "McLean (Enterprise Facility System) | Java Spring Boot & REST APIs",
+                "bullets": [
+                    "Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards, utilizing secure JWT authentication.",
+                ],
+            },
+        ]
 
-        # Project 2
-        story.append(Paragraph("<b>24/7 AI Voice Assistant</b> | Conversational AI & API Integration", item_title_left))
-        story.append(Paragraph("• Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.", bullet_style))
-
-        # Project 3
-        story.append(Paragraph("<b>McLean (Enterprise Facility System)</b> | Java Spring Boot & REST APIs", item_title_left))
-        story.append(Paragraph("• Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards, utilizing secure JWT authentication.", bullet_style))
+        for proj in projects_list[:3]:
+            p_title = proj.get("title", "")
+            story.append(Paragraph(f"<b>{p_title}</b>", item_title_left))
+            for b in proj.get("bullets", []):
+                b_text = b if b.startswith("•") else f"• {b}"
+                story.append(Paragraph(b_text, bullet_style))
 
         # ── 6. Education & Certifications ─────────────────────────
         story.append(Paragraph("<b>EDUCATION & CERTIFICATIONS</b>", section_header))
