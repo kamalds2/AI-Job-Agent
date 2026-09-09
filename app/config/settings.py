@@ -24,6 +24,7 @@ LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini").lower()  # gemini | clau
 GMAIL_CLIENT_ID: Optional[str] = os.getenv("GMAIL_CLIENT_ID")
 GMAIL_CLIENT_SECRET: Optional[str] = os.getenv("GMAIL_CLIENT_SECRET")
 GMAIL_REFRESH_TOKEN: Optional[str] = os.getenv("GMAIL_REFRESH_TOKEN")
+GMAIL_APP_PASSWORD: Optional[str] = os.getenv("GMAIL_APP_PASSWORD")
 EMAIL_ADDRESS: Optional[str] = os.getenv("EMAIL_ADDRESS")
 
 # ── WhatsApp ──────────────────────────────────────────────

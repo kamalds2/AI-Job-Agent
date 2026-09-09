@@ -10,6 +10,8 @@ Flow:
 import base64
 import json
 import logging
+import smtplib
+import ssl
 import sys
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -31,6 +33,7 @@ from app.config.settings import (
     GMAIL_CLIENT_ID,
     GMAIL_CLIENT_SECRET,
     GMAIL_REFRESH_TOKEN,
+    GMAIL_APP_PASSWORD,
     DRY_RUN,
     CANDIDATE_NAME,
 )
@@ -287,7 +290,7 @@ class EmailService:
         attachment_path: Optional[str] = None,
         **kwargs,
     ) -> bool:
-        """Send email via Gmail API with optional PDF / Excel attachment."""
+        """Send email via Gmail App Password (SMTP) or Gmail OAuth2 API with optional PDF / Excel attachment."""
         if DRY_RUN:
             logger.info(f"[DRY RUN] Would send email to {to_email}: '{subject}'")
             return True
@@ -296,47 +299,70 @@ class EmailService:
             logger.warning("EMAIL_ADDRESS not set — skipping send")
             return False
 
+        # Build MIMEMultipart email message
+        msg = MIMEMultipart()
+        msg["From"] = f"{CANDIDATE_NAME} <{EMAIL_ADDRESS}>"
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        attachment = attachment_path or pdf_attachment_path or kwargs.get("attachment_path")
+        if attachment and os.path.exists(attachment):
+            filename = os.path.basename(attachment)
+            maintype = "application"
+            subtype = "vnd.openxmlformats-officedocument.spreadsheetml.sheet" if filename.endswith((".xlsx", ".xls")) else "pdf"
+            with open(attachment, "rb") as f:
+                part = MIMEBase(maintype, subtype)
+                part.set_payload(f.read())
+                encoders.encode_base64(part)
+                part.add_header(
+                    "Content-Disposition",
+                    f'attachment; filename="{filename}"',
+                )
+                msg.attach(part)
+                logger.info(f"Attached {filename} ({subtype}) to email")
+
+        # ── Method 1: Permanent Gmail App Password (SMTP) ────────────
+        app_password = GMAIL_APP_PASSWORD or os.getenv("GMAIL_APP_PASSWORD")
+        if app_password:
+            clean_password = app_password.replace(" ", "").strip()
+            try:
+                context = ssl.create_default_context()
+                if sys.platform == "win32":
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+
+                with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                    server.ehlo()
+                    server.starttls(context=context)
+                    server.ehlo()
+                    server.login(EMAIL_ADDRESS, clean_password)
+                    server.sendmail(EMAIL_ADDRESS, to_email, msg.as_string())
+
+                logger.info(f"Email sent via Gmail SMTP to {to_email}: '{subject}'")
+                return True
+            except Exception as e:
+                logger.error(f"Gmail SMTP send failed to {to_email}: {e}")
+
+        # ── Method 2: Gmail OAuth2 API ──────────────────────────────
         access_token = self._get_access_token()
-        if not access_token:
-            return False
+        if access_token:
+            try:
+                raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+                resp = httpx.post(
+                    GMAIL_SEND_URL,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"raw": raw},
+                    verify=SSL_VERIFY,
+                )
+                resp.raise_for_status()
+                logger.info(f"Email sent via Gmail OAuth2 to {to_email}: '{subject}'")
+                return True
+            except Exception as e:
+                logger.error(f"Gmail OAuth2 API send failed to {to_email}: {e}")
 
-        try:
-            msg = MIMEMultipart()
-            msg["From"] = f"{CANDIDATE_NAME} <{EMAIL_ADDRESS}>"
-            msg["To"] = to_email
-            msg["Subject"] = subject
-            msg.attach(MIMEText(body, "plain"))
-
-            attachment = attachment_path or pdf_attachment_path or kwargs.get("attachment_path")
-            if attachment and os.path.exists(attachment):
-                filename = os.path.basename(attachment)
-                maintype = "application"
-                subtype = "vnd.openxmlformats-officedocument.spreadsheetml.sheet" if filename.endswith((".xlsx", ".xls")) else "pdf"
-                with open(attachment, "rb") as f:
-                    part = MIMEBase(maintype, subtype)
-                    part.set_payload(f.read())
-                    encoders.encode_base64(part)
-                    part.add_header(
-                        "Content-Disposition",
-                        f'attachment; filename="{filename}"',
-                    )
-                    msg.attach(part)
-                    logger.info(f"Attached {filename} ({subtype}) to email")
-
-            raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-            resp = httpx.post(
-                GMAIL_SEND_URL,
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json",
-                },
-                json={"raw": raw},
-                verify=SSL_VERIFY,
-            )
-            resp.raise_for_status()
-            logger.info(f"Email sent to {to_email}: '{subject}'")
-            return True
-
-        except Exception as e:
-            logger.error(f"Email send failed to {to_email}: {e}")
-            return False
+        logger.error(f"No valid Gmail authentication method succeeded for sending to {to_email}")
+        return False
