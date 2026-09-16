@@ -51,10 +51,10 @@ sources:
     description: "Himalayas Remote Startup Jobs API"
 
   adzuna:
-    enabled: true
+    enabled: false
     type: job_board
-    priority: high
-    description: "Adzuna Developer Jobs API for India & Global"
+    priority: low
+    description: "Adzuna Developer Jobs API (Disabled - contains stale aggregator reposts)"
 
   agent_reach:
     enabled: true

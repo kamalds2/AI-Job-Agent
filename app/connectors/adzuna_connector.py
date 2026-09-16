@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 ADZUNA_APP_ID = os.getenv("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.getenv("ADZUNA_APP_KEY")
+ADZUNA_ENABLED = os.getenv("ADZUNA_ENABLED", "false").lower() == "true"
 ADZUNA_BASE = "https://api.adzuna.com/v1/api/jobs/in/search"
 
 # Targeted queries tailored strictly for Kamal's profile (0-2 Yrs / 1+ Yrs)
@@ -52,6 +53,10 @@ class AdzunaConnector(BaseConnector):
     connector_name = "adzuna"
 
     async def fetch_jobs(self) -> list[dict]:
+        if not ADZUNA_ENABLED:
+            logger.info("[Adzuna] Skipping — Adzuna connector is disabled (contains stale aggregator reposts).")
+            return []
+
         if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
             logger.info(
                 "[Adzuna] Skipping — ADZUNA_APP_ID / ADZUNA_APP_KEY not set in .env. "
