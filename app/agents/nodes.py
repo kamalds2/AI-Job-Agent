@@ -601,6 +601,12 @@ def make_report_node():
                 run_stats=run_stats,
             )
 
+            # ── Generate Dedicated Recruiter & HR Outreach Report ──
+            recruiter_report_path = report_service.generate_recruiter_report(
+                recruiter_entries=applications,
+                stats=run_stats,
+            )
+
             email_svc = EmailService()
             today_str = date.today().strftime("%Y-%m-%d")
 
@@ -636,10 +642,11 @@ AI Job Agent Orchestrator
                 except Exception as mail_err:
                     logger.warning(f"Failed to email daily Excel report to candidate: {mail_err}")
 
-            logs.append(f"Report generated: {report_path}")
+            logs.append(f"Reports generated: {report_path} | {recruiter_report_path}")
             return {
                 **state,
                 "report_path": report_path,
+                "recruiter_report_path": recruiter_report_path,
                 "logs": logs,
                 "errors": errors,
             }
