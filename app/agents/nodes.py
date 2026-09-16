@@ -601,51 +601,10 @@ def make_report_node():
                 run_stats=run_stats,
             )
 
-            # ── Generate Dedicated Recruiter & HR Outreach Report ──
-            recruiter_report_path = report_service.generate_recruiter_report(
-                recruiter_entries=applications,
-                stats=run_stats,
-            )
-
             email_svc = EmailService()
             today_str = date.today().strftime("%Y-%m-%d")
 
-            # ── 1. Send Dedicated Recruiter & HR Email Report ──
-            if EMAIL_ADDRESS and os.path.exists(recruiter_report_path):
-                try:
-                    hr_subject = f"📬 [AI Job Agent] Recruiter & HR Outreach Report — {today_str}"
-                    hr_body = f"""Hi {CANDIDATE_NAME},
-
-Here is your dedicated Recruiter & HR Outreach and Email Discovery Report for {today_str}.
-
-📊 Recruiter Discovery & Cold Outreach Metrics:
-• Total Qualified Posts & JDs Scanned: {run_stats['posts_scanned_for_hr']}
-• Verified Recruiter / HR Emails Discovered: {run_stats['recruiter_emails_found']}
-• Cold Outreach Dispatched (Stream A): {run_stats['emails_sent']}
-• Direct Application Links Prepared (Stream B): {run_stats['direct_applied']}
-
-📎 Attached Excel Workbook:
-The dedicated spreadsheet ({os.path.basename(recruiter_report_path)}) is attached containing:
-- Original Job/Social Post Links
-- Discovered Recruiter/HR Contacts
-- Cold Outreach Email Delivery Status
-- Tailored ATS Resume Attachment Confirmation
-- Outreach Email Subject Lines
-
-Best regards,
-AI Job Agent Orchestrator
-"""
-                    email_svc.send_email(
-                        to_email=EMAIL_ADDRESS,
-                        subject=hr_subject,
-                        body=hr_body,
-                        attachment_path=recruiter_report_path,
-                    )
-                    logger.info(f"✅ Recruiter & HR Excel report emailed to {EMAIL_ADDRESS} with attachment {recruiter_report_path}")
-                except Exception as hr_err:
-                    logger.warning(f"Failed to email Recruiter HR report: {hr_err}")
-
-            # ── 2. Send General Daily Job Intelligence Report ──
+            # ── Send General Daily Job Intelligence Report ──
             if EMAIL_ADDRESS and os.path.exists(report_path):
                 try:
                     report_subject = f"📊 AI Job Agent Report — {today_str} ({run_stats['qualified']} Eligible Matches)"
@@ -677,11 +636,10 @@ AI Job Agent Orchestrator
                 except Exception as mail_err:
                     logger.warning(f"Failed to email daily Excel report to candidate: {mail_err}")
 
-            logs.append(f"Reports generated: {report_path} | {recruiter_report_path}")
+            logs.append(f"Report generated: {report_path}")
             return {
                 **state,
                 "report_path": report_path,
-                "recruiter_report_path": recruiter_report_path,
                 "logs": logs,
                 "errors": errors,
             }
