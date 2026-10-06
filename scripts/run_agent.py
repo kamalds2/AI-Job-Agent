@@ -3,7 +3,7 @@ CLI script to run the AI Job Agent manually.
 
 Usage:
     python scripts/run_agent.py              # Full run
-    python scripts/run_agent.py --dry-run    # Dry run (no emails/WhatsApp sent)
+    python scripts/run_agent.py --dry-run    # Dry run (no live submissions or emails sent)
     python scripts/run_agent.py --search-only # Only search, no AI scoring
 """
 import argparse
@@ -25,19 +25,24 @@ logger = logging.getLogger(__name__)
 
 async def main():
     parser = argparse.ArgumentParser(description="AI Job Agent CLI")
-    parser.add_argument("--dry-run", action="store_true", help="Run without sending emails/WhatsApp")
-    parser.add_argument("--search-only", action="store_true", help="Only run job search, skip AI scoring")
+    parser.add_argument("--dry-run", action="store_true", help="Run in dry-run mode (no live submissions or emails sent)")
+    parser.add_argument("--submit", action="store_true", help="Run live submissions across all browser agents")
+    parser.add_argument("--search-only", action="store_true", help="Only run job search, skip AI scoring and applications")
+    parser.add_argument("--target-apps", type=int, default=20, help="Target applications per browser portal (default: 20)")
+    parser.add_argument("--keyword", type=str, default="Java Backend Developer", help="Primary search keyword")
+    parser.add_argument("--location", type=str, default="India", help="Location filter")
     args = parser.parse_args()
 
-    print("\n" + "=" * 60)
-    print("  [AI JOB AGENT]")
-    print("=" * 60)
+    is_dry_run = not args.submit if args.submit else args.dry_run
 
-    if args.dry_run:
-        print("  [DRY RUN] No emails or WhatsApp will be sent")
-    if args.search_only:
-        print("  [SEARCH ONLY] No AI scoring")
-    print("=" * 60 + "\n")
+    print("\n" + "=" * 70)
+    print("  🤖 [AI JOB AGENT] MASTER MULTI-AGENT WORKFLOW RUNNER")
+    print("=" * 70)
+    print(f"  Target Role:      {args.keyword}")
+    print(f"  Location:         {args.location}")
+    print(f"  Target/Portal:    {args.target_apps} applications")
+    print(f"  Mode:             {'🧪 DRY RUN (Safe Mode)' if is_dry_run else '🚀 LIVE SUBMISSIONS ENABLED'}")
+    print("=" * 70 + "\n")
 
     if args.search_only:
         # Only run the search node
@@ -58,40 +63,39 @@ async def main():
         finally:
             db.close()
     else:
-        # Full agent run — Pipeline 1 (Job Boards) + Pipeline 2 (LinkedIn Feed)
-        from app.agents.orchestrator import run_agent
-        from app.services.linkedin_feed_scanner import LinkedInFeedScanner
+        # Full Multi-Agent Pipeline: Phase 1 -> Phase 2 -> Phase 3
+        from app.agents.orchestrator import run_full_multi_agent_pipeline
 
-        print("[1/2] Executing Job Boards & ATS Aggregator Pipeline...")
-        result = await run_agent(dry_run=args.dry_run)
+        summary = await run_full_multi_agent_pipeline(
+            dry_run=is_dry_run,
+            target_applied_per_portal=args.target_apps,
+            keyword=args.keyword,
+            location=args.location,
+        )
 
-        print(f"\n[OK] Job Boards & ATS Pipeline complete:")
-        print(f"   Jobs fetched:   {result.get('raw_jobs_count', 0)}")
-        print(f"   New jobs:       {result.get('new_jobs_count', 0)}")
-        print(f"   Scored:         {len(result.get('scored_jobs', []))}")
-        print(f"   Qualified:      {len(result.get('qualified_job_ids', []))}")
-        print(f"   Resumes made:   {len(result.get('resume_paths', {}))}")
-        print(f"   Job Report:     {result.get('report_path', 'N/A')}")
+        print("\n" + "=" * 70)
+        print("  📊 MASTER MULTI-AGENT EXECUTION SUMMARY")
+        print("=" * 70)
+        p1 = summary.get("phase1_aggregator", {})
+        print(f"  📦 Phase 1 (Job Boards & ATS):")
+        print(f"     - Jobs Fetched:  {p1.get('jobs_fetched', 0)}")
+        print(f"     - Scored:        {p1.get('scored', 0)}")
+        print(f"     - Qualified:     {p1.get('qualified', 0)}")
+        print(f"     - Report:        {p1.get('report_path', 'N/A')}")
 
-        print("\n[2/2] Executing LinkedIn Recruiter Feed & Outreach Pipeline...")
-        scanner = LinkedInFeedScanner()
-        recruiter_result = await scanner.scan_posts_and_outreach(dry_run=args.dry_run)
+        p2 = summary.get("phase2_recruiter_outreach", {})
+        print(f"  📬 Phase 2 (LinkedIn Recruiter Feed & Outreach):")
+        print(f"     - Posts Scanned: {p2.get('posts_scanned', 0)}")
+        print(f"     - HR Emails:     {p2.get('recruiter_emails_found', 0)}")
+        print(f"     - Cold Emails:   {p2.get('emails_sent', 0)}")
+        print(f"     - Report:        {p2.get('report_path', 'N/A')}")
 
-        print(f"\n[OK] LinkedIn Recruiter Outreach complete:")
-        print(f"   LinkedIn Posts Scanned:        {recruiter_result.get('posts_scanned', 0)}")
-        print(f"   Verified Recruiter Emails:     {recruiter_result.get('recruiter_emails_found', 0)}")
-        print(f"   Cold Emails Sent to HR:        {recruiter_result.get('emails_sent', 0)}")
-        print(f"   Direct Post Links Prepared:    {recruiter_result.get('direct_links_prepared', 0)}")
-        print(f"   Recruiter HR Report:           {recruiter_result.get('report_path', 'N/A')}")
+        p3 = summary.get("phase3_browser_agents", {})
+        print(f"  🌐 Phase 3 (Browser Auto-Apply Agents):")
+        for portal, p_data in p3.items():
+            print(f"     - {portal:15}: {p_data.get('applications', 0)}/{args.target_apps} applications ({p_data.get('status', 'N/A')})")
 
-        if errors := result.get("errors"):
-            print(f"\n[ERRORS] ({len(errors)}):")
-            for err in errors:
-                print(f"   - {err}")
-
-        print("\n" + "=" * 60)
-        print("  [COMPLETE] FULL AGENT RUN FINISHED SUCCESSFULLY!")
-        print("=" * 60)
+        print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

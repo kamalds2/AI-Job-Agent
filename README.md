@@ -44,10 +44,10 @@
   │  (ATS, Posts,    (0-2 Yrs)      (ReportLab)       • Gmail OAuth2 to HR │
   │   Aggregators)                                                         │
   │                                                                        │
-  │  5. Notify ────► 6. Report ────► END                                   │
-  │      ↓                ↓                                                │
-  │   WhatsApp       Daily Excel                                           │
-  │  (Cloud API)     JobReport.xlsx                                        │
+  │  5. Report ────► END                                                   │
+  │      ↓                                                                 │
+  │  Daily Excel                                                           │
+  │  JobReport.xlsx                                                        │
   └────────────────────────────────────────────────────────────────────────┘
 ```
 

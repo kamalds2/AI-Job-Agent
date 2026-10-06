@@ -42,25 +42,17 @@ async def trigger_agent_run(request: RunRequest, background_tasks: BackgroundTas
         global _is_running, _last_run_result
         _is_running = True
         try:
-            from app.agents.orchestrator import run_agent
-            result = await run_agent(dry_run=request.dry_run)
+            from app.agents.orchestrator import run_full_multi_agent_pipeline
+            summary = await run_full_multi_agent_pipeline(dry_run=request.dry_run)
             _last_run_result = {
-                "run_id": result.get("run_id"),
-                "timestamp": result.get("run_timestamp"),
-                "raw_jobs": result.get("raw_jobs_count", 0),
-                "new_jobs": result.get("new_jobs_count", 0),
-                "scored": len(result.get("scored_jobs", [])),
-                "qualified": len(result.get("qualified_job_ids", [])),
-                "resumes": len(result.get("resume_paths", {})),
-                "emails_sent": result.get("emails_sent", 0),
-                "whatsapp_sent": result.get("whatsapp_sent", False),
-                "report_path": result.get("report_path"),
-                "errors": result.get("errors", []),
-                "logs": result.get("logs", []),
+                "timestamp": summary.get("start_time"),
+                "phase1_aggregator": summary.get("phase1_aggregator", {}),
+                "phase2_recruiter_outreach": summary.get("phase2_recruiter_outreach", {}),
+                "phase3_browser_agents": summary.get("phase3_browser_agents", {}),
                 "status": "completed",
             }
         except Exception as e:
-            logger.error(f"Background run failed: {e}")
+            logger.error(f"Background multi-agent run failed: {e}")
             _last_run_result = {"status": "failed", "error": str(e)}
         finally:
             _is_running = False

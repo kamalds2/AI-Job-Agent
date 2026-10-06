@@ -220,7 +220,7 @@ class YCombinatorConnector(BaseConnector):
         return JobData(
             title=title,
             company=company,
-            location="Remote / USA",
+            location="Remote / India",
             remote=True,
             experience=None,
             employment_type="Full-time",

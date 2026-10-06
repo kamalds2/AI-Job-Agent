@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KKNN — Autonomous Job Assistant Performance Hub</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              white: '#ffffff',
+              50: '#fafafa',
+              100: '#f4f4f5',
+              200: '#e4e4e7',
+              300: '#d4d4d8',
+              400: '#a1a1aa',
+              500: '#71717a',
+              600: '#52525b',
+              700: '#3f3f46',
+              800: '#27272a',
+              900: '#18181b',
+              950: '#09090b',
+            },
+            dark: {
+              bg: '#000000',
+              card: 'rgba(18, 18, 20, 0.85)',
+              border: 'rgba(255, 255, 255, 0.12)',
+              glass: 'rgba(24, 24, 27, 0.70)',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      background-color: #000000;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(255, 255, 255, 0.05) 0px, transparent 45%),
+        radial-gradient(at 100% 0%, rgba(255, 255, 255, 0.03) 0px, transparent 40%),
+        radial-gradient(at 50% 100%, rgba(255, 255, 255, 0.04) 0px, transparent 50%);
+      background-attachment: fixed;
+    }
+    .glass-card {
+      background: rgba(14, 14, 17, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+    .glass-card-hover:hover {
+      border-color: rgba(255, 255, 255, 0.30);
+      box-shadow: 0 14px 36px -10px rgba(0, 0, 0, 0.9), 0 0 20px rgba(255, 255, 255, 0.04);
+    }
+    .glow-btn {
+      background: #ffffff;
+      color: #000000;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.18);
+    }
+    .glow-btn:hover {
+      background: #e4e4e7;
+      box-shadow: 0 0 28px rgba(255, 255, 255, 0.35);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(12, 12, 14, 0.6);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.18);
+      border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.35);
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.08); }
+    }
+    .pulse-dot {
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+  </style>
+</head>
+
+<body class="text-zinc-100 min-h-screen flex flex-col font-sans selection:bg-white selection:text-black">
+
+  <!-- TOP NAVIGATION HEADER -->
+  <header class="sticky top-0 z-40 w-full glass-card border-b border-white/10 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-2xl">
+    <div class="flex items-center space-x-4">
+      <!-- KKNN BRAND LOGO -->
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-b from-zinc-700 via-zinc-800 to-zinc-950 border border-white/20 flex items-center justify-center shadow-lg shadow-black">
+          <span class="font-extrabold text-white text-lg tracking-wider">KK</span>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-xl font-extrabold text-white tracking-tight">KKNN</h1>
+            <span class="px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-full bg-white/10 text-zinc-300 border border-white/20">Auto Agent Hub</span>
+          </div>
+          <p class="text-xs text-zinc-400 hidden sm:block">Autonomous Multi-Agent Job Discovery & Outreach Engine</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Candidate Profile Badge & Action Controls -->
+    <div class="flex items-center space-x-3 sm:space-x-4">
+      <!-- Live Status Badge -->
+      <div id="statusBadge" class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-200 text-xs font-medium">
+        <span class="w-2 h-2 rounded-full bg-white pulse-dot"></span>
+        <span id="statusText">SYSTEM ONLINE</span>
+      </div>
+
+      <!-- Candidate Pill -->
+      <div class="hidden md:flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-xs">
+        <i data-lucide="user" class="w-3.5 h-3.5 text-zinc-300"></i>
+        <span class="font-medium text-white" id="candidateName">Doddi Kamal Kumar</span>
+        <span class="text-zinc-600">|</span>
+        <span class="text-zinc-400" id="candidateRole">Java Developer & AI Engineer</span>
+      </div>
+
+      <!-- Start Agent Trigger Button -->
+      <button onclick="openTriggerModal()" class="glow-btn text-black text-xs sm:text-sm font-bold px-4 py-2 rounded-xl flex items-center space-x-2 transition-all transform hover:scale-[1.02] active:scale-95 shadow-lg">
+        <i data-lucide="play" class="w-4 h-4 fill-black text-black"></i>
+        <span>Trigger Agent</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- TIMEFRAME FILTER & QUICK STATS BAR -->
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 glass-card p-4 rounded-2xl border border-white/10">
+      <div>
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i data-lucide="activity" class="w-5 h-5 text-zinc-300"></i>
+          Performance & Analytics Dashboard
+        </h2>
+        <p class="text-xs text-zinc-400">Track daily, weekly, and monthly job submissions across all active portals directly from database</p>
+      </div>
+
+      <!-- Calendar Date Range & Timeframe Toggle Buttons -->
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Date Calendar Inputs -->
+        <div class="flex items-center bg-zinc-950 px-3 py-1.5 rounded-xl border border-zinc-800 text-xs text-zinc-300 gap-2 shadow-inner">
+          <i data-lucide="calendar" class="w-3.5 h-3.5 text-zinc-400"></i>
+          <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">From</span>
+          <input type="date" id="dateStart" class="bg-zinc-900 border border-zinc-800 rounded px-2 py-0.5 text-white text-xs focus:outline-none focus:border-white [color-scheme:dark]">
+          <span class="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider">To</span>
+          <input type="date" id="dateEnd" class="bg-zinc-900 border border-zinc-800 rounded px-2 py-0.5 text-white text-xs focus:outline-none focus:border-white [color-scheme:dark]">
+          <button onclick="applyDateRangeFilter()" class="px-2.5 py-1 bg-white hover:bg-zinc-200 text-black font-bold rounded-lg text-xs transition-all shadow">Filter</button>
+          <button onclick="resetDateRangeFilter()" id="btnResetDates" class="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs transition-all hidden" title="Clear Date Filter"><i data-lucide="x" class="w-3 h-3"></i></button>
+        </div>
+
+        <!-- Quick Timeframe Toggle Buttons -->
+        <div class="flex items-center bg-zinc-950 p-1 rounded-xl border border-zinc-800 self-start sm:self-auto">
+          <button onclick="setTimeframe('today')" id="tf-today" class="tf-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all text-zinc-400 hover:text-white">Today</button>
+          <button onclick="setTimeframe('week')" id="tf-week" class="tf-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all text-zinc-400 hover:text-white">This Week</button>
+          <button onclick="setTimeframe('month')" id="tf-month" class="tf-btn px-3 py-1.5 text-xs font-medium rounded-lg transition-all text-zinc-400 hover:text-white">This Month</button>
+          <button onclick="setTimeframe('all')" id="tf-all" class="tf-btn px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-black shadow">All-Time</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI SUMMARY METRIC CARDS (3 APPLICATION PHASES) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <!-- KPI 1: Phase 3 Browser Auto-Applied -->
+      <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden transition-all border border-white/10">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-zinc-300">Phase 3: Browser Applied</span>
+          <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-white flex items-center justify-center">
+            <i data-lucide="send" class="w-4 h-4"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="kpiTotalApps" class="text-3xl font-extrabold text-white tracking-tight">--</span>
+          <span class="text-xs font-semibold text-zinc-200 bg-white/10 px-2 py-0.5 rounded-md border border-white/20">Auto-Applied</span>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-zinc-400 border-t border-zinc-800/80 pt-2.5">
+          <span>LinkedIn, YC, Cutshort, Indeed</span>
+          <span class="font-semibold text-zinc-200">Live Agent</span>
+        </div>
+      </div>
+
+      <!-- KPI 2: Phase 2 Recruiter Outreach Emails -->
+      <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden transition-all border border-white/10">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-zinc-300">Phase 2: HR Outreach Emails</span>
+          <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-white flex items-center justify-center">
+            <i data-lucide="mail-check" class="w-4 h-4"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="kpiEmailsSent" class="text-3xl font-extrabold text-white tracking-tight">--</span>
+          <span class="text-xs font-semibold text-zinc-200 bg-white/10 px-2 py-0.5 rounded-md border border-white/20">Verified HR Sent</span>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-zinc-400 border-t border-zinc-800/80 pt-2.5">
+          <span>Excel links excluded</span>
+          <span id="kpiReportsCount" class="font-semibold text-zinc-200">Direct Mails Only</span>
+        </div>
+      </div>
+
+      <!-- KPI 3: Phase 1 Sourced Connector Jobs -->
+      <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden transition-all border border-white/10">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-zinc-300">Phase 1: Sourced Connector Jobs</span>
+          <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-white flex items-center justify-center">
+            <i data-lucide="compass" class="w-4 h-4"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="kpiSourcedCount" class="text-3xl font-extrabold text-white tracking-tight">--</span>
+          <span class="text-xs font-semibold text-zinc-400 bg-zinc-900 px-2 py-0.5 rounded-md border border-zinc-800">Manual Apply</span>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-zinc-400 border-t border-zinc-800/80 pt-2.5">
+          <span>API Aggregators:</span>
+          <span class="font-semibold text-zinc-300">Candidate Submission</span>
+        </div>
+      </div>
+
+      <!-- KPI 4: Tailored ATS Resumes Generated -->
+      <div class="glass-card glass-card-hover p-5 rounded-2xl relative overflow-hidden transition-all border border-white/10">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-xs font-bold uppercase tracking-wider text-zinc-300">Tailored Resumes</span>
+          <div class="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-white flex items-center justify-center">
+            <i data-lucide="file-text" class="w-4 h-4"></i>
+          </div>
+        </div>
+        <div class="flex items-baseline space-x-2">
+          <span id="kpiResumesCount" class="text-3xl font-extrabold text-white tracking-tight">--</span>
+          <span class="text-xs font-semibold text-zinc-200 bg-white/10 px-2 py-0.5 rounded-md border border-white/20">1-Page ATS</span>
+        </div>
+        <div class="mt-3 flex items-center justify-between text-xs text-zinc-400 border-t border-zinc-800/80 pt-2.5">
+          <span>Avg Match Score:</span>
+          <span id="kpiAvgScore" class="font-semibold text-zinc-200">--%</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- PERFORMANCE ANALYTICS CHARTS -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
+      <!-- Trend Area Chart (2 cols) -->
+      <div class="lg:col-span-2 glass-card p-5 rounded-2xl space-y-4 border border-white/10">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="font-bold text-white text-base flex items-center gap-2">
+              <i data-lucide="trending-up" class="w-4 h-4 text-zinc-300"></i>
+              Application & Execution Trajectory
+            </h3>
+            <p class="text-xs text-zinc-400">Daily browser submissions (Click any point on graph to filter by date & view logs)</p>
+          </div>
+          <!-- Portal Filter Toolbar for Line Graph -->
+          <div class="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800 text-xs flex-wrap">
+            <button onclick="filterTrendPortal('all')" id="tp-all" class="tp-btn px-2.5 py-1 rounded-lg font-bold bg-white text-black transition-all">All</button>
+            <button onclick="filterTrendPortal('linkedin')" id="tp-linkedin" class="tp-btn px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">LinkedIn</button>
+            <button onclick="filterTrendPortal('ycombinator')" id="tp-ycombinator" class="tp-btn px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">YC</button>
+            <button onclick="filterTrendPortal('cutshort')" id="tp-cutshort" class="tp-btn px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">Cutshort</button>
+            <button onclick="filterTrendPortal('indeed')" id="tp-indeed" class="tp-btn px-2.5 py-1 rounded-lg text-zinc-400 hover:text-white transition-all">Indeed</button>
+          </div>
+        </div>
+        <div class="h-64 w-full">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Portal Breakdown Doughnut Chart (1 col) -->
+      <div class="glass-card p-5 rounded-2xl space-y-4 flex flex-col justify-between border border-white/10">
+        <div>
+          <h3 class="font-bold text-white text-base flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-zinc-300"></i>
+            Browser Portals Distribution
+          </h3>
+          <p class="text-xs text-zinc-400">Phase 3: Live submissions across automated browser agents</p>
+        </div>
+        <div class="h-52 relative flex items-center justify-center">
+          <canvas id="portalChart"></canvas>
+        </div>
+        <div id="portalLegends" class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-zinc-800/80">
+          <!-- Injected via JS -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- INTERACTIVE CONTROL TABS & DATA TABLES -->
+    <div class="glass-card rounded-2xl overflow-hidden shadow-2xl border border-white/10">
+      
+      <!-- TAB NAVIGATION FOR 3 PHASES -->
+      <div class="border-b border-zinc-800 px-6 pt-4 flex flex-wrap gap-6 text-sm font-semibold">
+        <button onclick="switchTab('tab-applications')" id="btn-tab-applications" class="tab-btn pb-3 border-b-2 border-white text-white flex items-center gap-2 transition-all">
+          <i data-lucide="send" class="w-4 h-4"></i>
+          Phase 3: Browser Auto-Applied
+          <span id="tabCountApps" class="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-white/15 text-white">0</span>
+        </button>
+        <button onclick="switchTab('tab-sourced')" id="btn-tab-sourced" class="tab-btn pb-3 border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-2 transition-all">
+          <i data-lucide="compass" class="w-4 h-4"></i>
+          Phase 1: Sourced Connector Jobs
+          <span id="tabCountSourced" class="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300">0</span>
+        </button>
+        <button onclick="switchTab('tab-recruiters')" id="btn-tab-recruiters" class="tab-btn pb-3 border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-2 transition-all">
+          <i data-lucide="mail-check" class="w-4 h-4"></i>
+          Phase 2: HR Outreach Emails
+          <span id="tabCountRecruiters" class="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300">0</span>
+        </button>
+        <button onclick="switchTab('tab-reports')" id="btn-tab-reports" class="tab-btn pb-3 border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-2 transition-all">
+          <i data-lucide="folder-down" class="w-4 h-4"></i>
+          Reports & Resumes
+        </button>
+        <button onclick="switchTab('tab-logs')" id="btn-tab-logs" class="tab-btn pb-3 border-b-2 border-transparent text-zinc-400 hover:text-zinc-200 flex items-center gap-2 transition-all">
+          <i data-lucide="terminal" class="w-4 h-4"></i>
+          Live Logs & Daily History
+        </button>
+      </div>
+
+      <!-- TAB 1: APPLICATIONS DATA TABLE -->
+      <div id="tab-applications" class="tab-content p-6 space-y-4">
+        
+        <!-- Filter Controls -->
+        <div class="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+            <input type="text" id="tableSearch" onkeyup="debounceSearch()" placeholder="Search by job title, company name, or keywords..." class="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-white">
+          </div>
+          
+          <div class="flex items-center gap-3">
+            <!-- Portal Filter Dropdown -->
+            <select id="portalFilter" onchange="loadApplications()" class="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs sm:text-sm text-zinc-300 focus:outline-none focus:border-white">
+              <option value="all">All Portals</option>
+              <option value="linkedin">LinkedIn</option>
+              <option value="ycombinator">Y Combinator</option>
+              <option value="hirist">Hirist</option>
+              <option value="cutshort">Cutshort</option>
+              <option value="indeed">Indeed</option>
+            </select>
+
+            <!-- Status Filter Dropdown -->
+            <select id="statusFilter" onchange="loadApplications()" class="bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs sm:text-sm text-zinc-300 focus:outline-none focus:border-white">
+              <option value="all">All Statuses</option>
+              <option value="APPLIED">Applied</option>
+              <option value="DRY_RUN">Dry Run</option>
+              <option value="PENDING">Pending</option>
+              <option value="SKIPPED">Skipped</option>
+            </select>
+
+            <button onclick="loadApplications()" class="p-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl border border-zinc-700 text-zinc-300 transition-all" title="Refresh">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="overflow-x-auto rounded-xl border border-zinc-800 custom-scrollbar">
+          <table class="w-full text-left text-xs sm:text-sm text-zinc-300">
+            <thead class="bg-zinc-900/90 uppercase text-[11px] font-semibold text-zinc-400 border-b border-zinc-800">
+              <tr>
+                <th class="px-4 py-3.5">Job Title</th>
+                <th class="px-4 py-3.5">Company</th>
+                <th class="px-4 py-3.5">Portal</th>
+                <th class="px-4 py-3.5 text-center">Score</th>
+                <th class="px-4 py-3.5">Status</th>
+                <th class="px-4 py-3.5">Applied Date</th>
+                <th class="px-4 py-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="applicationsTableBody" class="divide-y divide-zinc-800/60">
+              <tr>
+                <td colspan="7" class="px-4 py-8 text-center text-zinc-500">Loading application records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Bar -->
+        <div class="flex items-center justify-between text-xs text-zinc-400 pt-2">
+          <span id="pageInfo">Showing 1 to 25</span>
+          <div class="flex gap-2">
+            <button onclick="prevPage()" id="btnPrevPage" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:pointer-events-none transition-all text-zinc-200">Previous</button>
+            <button onclick="nextPage()" id="btnNextPage" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:pointer-events-none transition-all text-zinc-200">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 1B: PHASE 1 SOURCED CONNECTOR JOBS (MANUAL APPLY) -->
+      <div id="tab-sourced" class="tab-content p-6 space-y-4 hidden">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="font-bold text-white text-base flex items-center gap-2">
+              <i data-lucide="compass" class="w-4 h-4 text-zinc-300"></i>
+              Phase 1: Sourced Connector Jobs (Manual Candidate Submissions)
+            </h3>
+            <p class="text-xs text-zinc-400">Scraped via API connectors (Adzuna, Himalayas, Jobicy, Lever, Arbeitnow) &mdash; candidates apply manually via direct links</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-zinc-400 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl font-medium">Excluded from Auto-Applied KPI</span>
+          </div>
+        </div>
+
+        <!-- Filter Controls for Sourced Jobs -->
+        <div class="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400"></i>
+            <input type="text" id="sourcedSearch" onkeyup="debounceSourcedSearch()" placeholder="Search sourced jobs by title, company, or keywords..." class="w-full bg-zinc-900 border border-zinc-700/80 rounded-xl pl-10 pr-4 py-2 text-xs sm:text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-white">
+          </div>
+          
+          <div class="flex items-center gap-3">
+            <button onclick="loadSourcedJobs()" class="p-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl border border-zinc-700 text-zinc-300 transition-all" title="Refresh">
+              <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="overflow-x-auto rounded-xl border border-zinc-800 custom-scrollbar">
+          <table class="w-full text-left text-xs sm:text-sm text-zinc-300">
+            <thead class="bg-zinc-900/90 uppercase text-[11px] font-semibold text-zinc-400 border-b border-zinc-800">
+              <tr>
+                <th class="px-4 py-3.5">Job Title</th>
+                <th class="px-4 py-3.5">Company</th>
+                <th class="px-4 py-3.5">Portal / Source</th>
+                <th class="px-4 py-3.5 text-center">Score</th>
+                <th class="px-4 py-3.5">Sourced Date</th>
+                <th class="px-4 py-3.5 text-right">Direct Application</th>
+              </tr>
+            </thead>
+            <tbody id="sourcedTableBody" class="divide-y divide-zinc-800/60">
+              <tr>
+                <td colspan="6" class="px-4 py-8 text-center text-zinc-500">Loading sourced connector jobs...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Bar -->
+        <div class="flex items-center justify-between text-xs text-zinc-400 pt-2">
+          <span id="sourcedPageInfo">Showing page 1</span>
+          <div class="flex gap-2">
+            <button onclick="prevSourcedPage()" id="btnPrevSourcedPage" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:pointer-events-none transition-all text-zinc-200">Previous</button>
+            <button onclick="nextSourcedPage()" id="btnNextSourcedPage" class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 disabled:pointer-events-none transition-all text-zinc-200">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: RECRUITER OUTREACH -->
+      <div id="tab-recruiters" class="tab-content p-6 space-y-4 hidden">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <h3 class="font-bold text-white text-base">Verified Recruiter & HR Outreach Log</h3>
+            <p class="text-xs text-zinc-400">Cold emails dispatched directly to hiring managers with tailored ATS resume attached</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-zinc-800 custom-scrollbar">
+          <table class="w-full text-left text-xs sm:text-sm text-zinc-300">
+            <thead class="bg-zinc-900/90 uppercase text-[11px] font-semibold text-zinc-400 border-b border-zinc-800">
+              <tr>
+                <th class="px-4 py-3.5">Recruiter / HR Name</th>
+                <th class="px-4 py-3.5">Company</th>
+                <th class="px-4 py-3.5">Verified Email</th>
+                <th class="px-4 py-3.5">Role / Position</th>
+                <th class="px-4 py-3.5">Status</th>
+              </tr>
+            </thead>
+            <tbody id="recruitersTableBody" class="divide-y divide-zinc-800/60">
+              <tr>
+                <td colspan="5" class="px-4 py-8 text-center text-zinc-500">Loading recruiter outreach records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB 3: REPORTS & RESUMES -->
+      <div id="tab-reports" class="tab-content p-6 space-y-6 hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Excel Reports Section -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                <i data-lucide="file-spreadsheet" class="w-4 h-4 text-zinc-300"></i>
+                Generated Excel Summary Reports
+              </h4>
+            </div>
+            <div id="reportsList" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+              <div class="p-4 rounded-xl bg-zinc-900/80 text-center text-xs text-zinc-500">Loading reports...</div>
+            </div>
+          </div>
+
+          <!-- Tailored ATS PDF Resumes Section -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-zinc-300"></i>
+                Recent Tailored ATS Resumes (PDF)
+              </h4>
+            </div>
+            <div id="resumesList" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1">
+              <div class="p-4 rounded-xl bg-zinc-900/80 text-center text-xs text-zinc-500">Loading tailored resumes...</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 4: LIVE LOGS & EXECUTION CONSOLE -->
+      <div id="tab-logs" class="tab-content p-6 space-y-4 hidden">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center space-x-3">
+            <div class="w-3 h-3 rounded-full bg-white pulse-dot" id="consolePulse"></div>
+            <div>
+              <h3 class="font-bold text-white text-base">Execution Console & Daily Logs</h3>
+              <p class="text-xs text-zinc-400">Live agent subprocess stream and date-filtered daily log archives</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="flex items-center gap-1.5 bg-zinc-900 border border-zinc-700 rounded-xl px-2.5 py-1.5">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-zinc-400"></i>
+              <label class="text-[11px] text-zinc-400">Select Date:</label>
+              <select id="logDateSelect" onchange="onLogDateChanged()" class="bg-transparent text-xs text-white font-medium focus:outline-none cursor-pointer">
+                <option value="">Today - Live</option>
+              </select>
+            </div>
+            <button onclick="clearConsole()" class="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg border border-zinc-700">Clear</button>
+            <button onclick="stopAgentProcess()" class="px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg border border-zinc-600">Stop Process</button>
+          </div>
+        </div>
+
+        <div id="consoleTerminal" class="h-96 bg-black rounded-xl p-4 font-mono text-xs text-zinc-300 overflow-y-auto custom-scrollbar space-y-1 border border-zinc-800">
+          <div class="text-zinc-500">[SYSTEM] KKNN Live Logging Stream Active. Ready for trigger...</div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- AGENT TRIGGER MODAL -->
+  <div id="triggerModal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 hidden">
+    <div class="glass-card max-w-lg w-full rounded-2xl p-6 space-y-5 border border-white/20 shadow-2xl relative bg-zinc-950">
+      <button onclick="closeTriggerModal()" class="absolute right-4 top-4 text-zinc-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-zinc-800 border border-white/20 flex items-center justify-center shadow-lg">
+          <i data-lucide="play" class="w-5 h-5 text-white fill-white"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-white text-lg">Trigger KKNN Autonomous Agent</h3>
+          <p class="text-xs text-zinc-400">Launch autonomous job discovery & auto-apply runner</p>
+        </div>
+      </div>
+
+      <!-- Form Options -->
+      <div class="space-y-4 text-xs sm:text-sm">
+        
+        <!-- Pipeline Action Selection -->
+        <div>
+          <label class="block font-semibold text-zinc-300 mb-1.5">Execution Action</label>
+          <select id="triggerAction" class="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-2.5 text-zinc-200 focus:border-white focus:outline-none">
+            <option value="browser_agent">Phase 3: Sequential Browser Auto-Apply (LinkedIn, YC, Hirist, Cutshort)</option>
+            <option value="full_pipeline">Full 3-Phase Pipeline (APIs + LinkedIn Recruiter + Browser Agents)</option>
+          </select>
+        </div>
+
+        <!-- Target Count Selection (Configured to 5 Apps) -->
+        <div>
+          <label class="block font-semibold text-zinc-300 mb-1.5">Target Applications per Portal</label>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="selectTarget(5)" class="target-btn active px-4 py-2.5 rounded-xl border border-white bg-white text-black font-bold text-xs sm:text-sm flex items-center gap-2" data-target="5">
+              <i data-lucide="check" class="w-4 h-4"></i> 5 Applications (Standard Batch)
+            </button>
+          </div>
+          <p class="text-[11px] text-zinc-500 mt-1">Configured strictly for 5 applications per portal batch.</p>
+        </div>
+
+        <!-- Active Portals Checkboxes -->
+        <div>
+          <label class="block font-semibold text-zinc-300 mb-1.5">Active Job Portals</label>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <label class="flex items-center space-x-2 bg-zinc-900/90 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700">
+              <input type="checkbox" id="portal-linkedin" checked class="rounded accent-white text-white">
+              <span class="text-zinc-200">LinkedIn</span>
+            </label>
+            <label class="flex items-center space-x-2 bg-zinc-900/90 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700">
+              <input type="checkbox" id="portal-ycombinator" checked class="rounded accent-white text-white">
+              <span class="text-zinc-200">Y Combinator</span>
+            </label>
+            <label class="flex items-center space-x-2 bg-zinc-900/90 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700">
+              <input type="checkbox" id="portal-hirist" checked class="rounded accent-white text-white">
+              <span class="text-zinc-200">Hirist</span>
+            </label>
+            <label class="flex items-center space-x-2 bg-zinc-900/90 p-2 rounded-lg border border-zinc-800 cursor-pointer hover:border-zinc-700">
+              <input type="checkbox" id="portal-cutshort" checked class="rounded accent-white text-white">
+              <span class="text-zinc-200">Cutshort</span>
+            </label>
+            <label class="flex items-center space-x-2 bg-zinc-900/90 p-2 rounded-lg border border-zinc-800 cursor-pointer opacity-60">
+              <input type="checkbox" id="portal-indeed" class="rounded accent-white text-white">
+              <span class="text-zinc-400">Indeed (Paused)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Dry Run Mode Toggle -->
+        <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-900 border border-zinc-800">
+          <div>
+            <div class="font-semibold text-white">Dry-Run Preview Mode</div>
+            <div class="text-[11px] text-zinc-400">Fill and verify forms without final submit</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="dryRunToggle" class="sr-only peer">
+            <div class="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-zinc-950 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-white"></div>
+          </label>
+        </div>
+
+      </div>
+
+      <!-- Modal Action Buttons -->
+      <div class="flex items-center justify-end space-x-3 pt-2">
+        <button onclick="closeTriggerModal()" class="px-4 py-2 text-xs font-semibold text-zinc-400 hover:text-white">Cancel</button>
+        <button onclick="executeAgentTrigger()" class="glow-btn text-black text-xs sm:text-sm font-bold px-5 py-2.5 rounded-xl flex items-center space-x-2 transition-all">
+          <i data-lucide="play" class="w-4 h-4 fill-black text-black"></i>
+          <span>Start Execution</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="mt-auto border-t border-white/10 py-4 px-6 text-center text-xs text-zinc-500">
+    <div class="flex flex-col sm:flex-row items-center justify-between max-w-7xl mx-auto">
+      <div>KKNN Autonomous Multi-Agent Job Assistant &copy; 2026. All rights reserved.</div>
+      <div class="mt-1 sm:mt-0">Candidate: <span class="text-zinc-200 font-medium">Doddi Kamal Kumar</span> (Java Developer / AI Engineer / Full Stack, 0–2 Yrs)</div>
+    </div>
+  </footer>
+
+  <!-- JAVASCRIPT APP LOGIC -->
+  <script>
+    let currentTimeframe = 'all';
+    let currentTab = 'tab-applications';
+    let currentPage = 1;
+    let currentSourcedPage = 1;
+    let selectedTargetCount = 5;
+    let trendChartInstance = null;
+    let portalChartInstance = null;
+    let logPollInterval = null;
+    let debounceTimer = null;
+    let debounceSourcedTimer = null;
+    let activeDailyData = [];
+    let currentTrendPortal = 'all';
+    let customStartDate = null;
+    let customEndDate = null;
+
+    // Init Lucide Icons
+    lucide.createIcons();
+
+    // DOM Ready Initialization
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchDashboardStats();
+      loadApplications();
+      loadSourcedJobs();
+      loadRecruiters();
+      loadReportsAndResumes();
+      loadAvailableLogDates();
+      startStatusPolling();
+    });
+
+    // ── 1. Fetch Stats & Render Charts ──────────────────────────────
+    async function fetchDashboardStats() {
+      try {
+        let statsUrl = `/api/kknn/stats?timeframe=${currentTimeframe}`;
+        if (customStartDate && customEndDate) {
+          statsUrl = `/api/kknn/stats?start_date=${customStartDate}&end_date=${customEndDate}`;
+        }
+        const res = await fetch(statsUrl);
+        const data = await res.json();
+        
+        // Update KPIs — Strictly partitioned by 3 phases
+        document.getElementById('kpiTotalApps').innerText = data.kpis.phase3_browser_applied || data.kpis.total_applications;
+        document.getElementById('kpiEmailsSent').innerText = data.kpis.phase2_hr_emails || data.kpis.emails_sent;
+        if (document.getElementById('kpiSourcedCount')) {
+          document.getElementById('kpiSourcedCount').innerText = data.kpis.phase1_sourced_jobs || 0;
+        }
+        document.getElementById('kpiReportsCount').innerText = data.kpis.reports_count;
+        document.getElementById('kpiAvgScore').innerText = `${data.kpis.avg_match_score}%`;
+        document.getElementById('kpiResumesCount').innerText = data.kpis.resumes_count;
+        
+        // Tab Counters
+        document.getElementById('tabCountApps').innerText = data.kpis.phase3_browser_applied || data.kpis.total_applications;
+        if (document.getElementById('tabCountSourced')) {
+          document.getElementById('tabCountSourced').innerText = data.kpis.phase1_sourced_jobs || 0;
+        }
+        if (document.getElementById('tabCountRecruiters')) {
+          document.getElementById('tabCountRecruiters').innerText = data.kpis.phase2_hr_emails || data.kpis.emails_sent;
+        }
+
+        // Update candidate name & role dynamically from backend
+        if (data.candidate) {
+          if (data.candidate.name && document.getElementById('candidateName')) {
+            document.getElementById('candidateName').innerText = data.candidate.name;
+          }
+          if (data.candidate.target_roles && data.candidate.target_roles.length > 0 && document.getElementById('candidateRole')) {
+            document.getElementById('candidateRole').innerText = data.candidate.target_roles[0] + ' & AI Engineer';
+          }
+        }
+
+        // Store daily trends and render Trend Chart
+        activeDailyData = data.daily_trends || [];
+        renderTrendChart(activeDailyData);
+
+        // Render Portal Breakdown Chart
+        renderPortalChart(data.portal_counts);
+
+      } catch (err) {
+        console.error('Stats error:', err);
+      }
+    }
+
+    function renderTrendChart(dailyData) {
+      const ctx = document.getElementById('trendChart').getContext('2d');
+      if (trendChartInstance) trendChartInstance.destroy();
+
+      const labels = dailyData.map(d => d.date);
+      let values = dailyData.map(d => d.applications);
+      let labelName = 'Applications Done';
+      let strokeColor = '#ffffff';
+
+      if (currentTrendPortal !== 'all') {
+        if (currentTrendPortal === 'linkedin') {
+          values = dailyData.map(d => d.linkedin || 0);
+          labelName = 'LinkedIn Applications';
+          strokeColor = '#0077b5';
+        } else if (currentTrendPortal === 'ycombinator') {
+          values = dailyData.map(d => d.ycombinator || 0);
+          labelName = 'Y Combinator Applications';
+          strokeColor = '#ff6600';
+        } else if (currentTrendPortal === 'cutshort') {
+          values = dailyData.map(d => d.cutshort || 0);
+          labelName = 'Cutshort Applications';
+          strokeColor = '#9ca3af';
+        } else if (currentTrendPortal === 'indeed') {
+          values = dailyData.map(d => d.indeed || 0);
+          labelName = 'Indeed Applications';
+          strokeColor = '#10b981';
+        }
+      }
+
+      trendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: labelName,
+            data: values,
+            borderColor: strokeColor,
+            backgroundColor: strokeColor === '#ffffff' ? 'rgba(255, 255, 255, 0.08)' : strokeColor + '1a',
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: strokeColor,
+            pointBorderColor: '#000000',
+            pointBorderWidth: 1.5,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          onHover: (e, elements) => {
+            e.native.target.style.cursor = elements && elements.length > 0 ? 'pointer' : 'default';
+          },
+          onClick: (e, elements) => {
+            if (elements && elements.length > 0) {
+              const idx = elements[0].index;
+              const point = dailyData[idx];
+              if (point && point.date_iso) {
+                filterByDayClick(point.date_iso);
+              }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#18181b',
+              titleColor: '#ffffff',
+              bodyColor: '#d4d4d8',
+              borderColor: 'rgba(255, 255, 255, 0.2)',
+              borderWidth: 1,
+              padding: 10,
+              displayColors: false,
+              callbacks: {
+                afterBody: () => '\n👉 Click to filter dashboard & view logs for this date'
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#71717a', font: { size: 10 } }
+            },
+            y: {
+              grid: { color: 'rgba(255, 255, 255, 0.05)' },
+              ticks: { color: '#71717a', font: { size: 10 }, precision: 0 },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    // Portal Filter in Line Graph Toolbar
+    function filterTrendPortal(portal) {
+      currentTrendPortal = portal;
+      document.querySelectorAll('.tp-btn').forEach(b => {
+        b.classList.remove('bg-white', 'text-black', 'font-bold');
+        b.classList.add('text-zinc-400');
+      });
+      const activeBtn = document.getElementById(`tp-${portal}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-white', 'text-black', 'font-bold');
+        activeBtn.classList.remove('text-zinc-400');
+      }
+
+      if (!trendChartInstance || !activeDailyData) return;
+
+      let values = [];
+      let labelName = 'Applications Done';
+      let strokeColor = '#ffffff';
+
+      if (portal === 'all') {
+        values = activeDailyData.map(d => d.applications || 0);
+        labelName = 'Total Applications Done';
+        strokeColor = '#ffffff';
+      } else if (portal === 'linkedin') {
+        values = activeDailyData.map(d => d.linkedin || 0);
+        labelName = 'LinkedIn Applications';
+        strokeColor = '#0077b5';
+      } else if (portal === 'ycombinator') {
+        values = activeDailyData.map(d => d.ycombinator || 0);
+        labelName = 'Y Combinator Applications';
+        strokeColor = '#ff6600';
+      } else if (portal === 'cutshort') {
+        values = activeDailyData.map(d => d.cutshort || 0);
+        labelName = 'Cutshort Applications';
+        strokeColor = '#9ca3af';
+      } else if (portal === 'indeed') {
+        values = activeDailyData.map(d => d.indeed || 0);
+        labelName = 'Indeed Applications';
+        strokeColor = '#10b981';
+      }
+
+      trendChartInstance.data.datasets[0].data = values;
+      trendChartInstance.data.datasets[0].label = labelName;
+      trendChartInstance.data.datasets[0].borderColor = strokeColor;
+      trendChartInstance.data.datasets[0].pointBackgroundColor = strokeColor;
+      trendChartInstance.data.datasets[0].backgroundColor = strokeColor === '#ffffff' ? 'rgba(255, 255, 255, 0.08)' : strokeColor + '1a';
+      trendChartInstance.update();
+    }
+
+    // Clicking any point on the trajectory line graph filters everything to that day
+    function filterByDayClick(dateIso) {
+      const sInput = document.getElementById('dateStart');
+      const eInput = document.getElementById('dateEnd');
+      if (sInput && eInput) {
+        sInput.value = dateIso;
+        eInput.value = dateIso;
+      }
+      customStartDate = dateIso;
+      customEndDate = dateIso;
+
+      const resetBtn = document.getElementById('btnResetDates');
+      if (resetBtn) resetBtn.classList.remove('hidden');
+
+      // Clear quick timeframe active buttons
+      document.querySelectorAll('.tf-btn').forEach(b => {
+        b.classList.remove('bg-white', 'text-black', 'shadow');
+        b.classList.add('text-zinc-400');
+      });
+
+      currentPage = 1;
+      currentSourcedPage = 1;
+      fetchDashboardStats();
+      loadApplications();
+      loadSourcedJobs();
+
+      // Switch to Logs Tab & Select this day in the log dropdown
+      switchTab('tab-logs');
+      const dateSelect = document.getElementById('logDateSelect');
+      if (dateSelect) {
+        dateSelect.value = dateIso;
+      }
+      loadLogsForSelectedDate(dateIso);
+    }
+
+    function applyDateRangeFilter() {
+      const s = document.getElementById('dateStart').value;
+      const e = document.getElementById('dateEnd').value;
+      if (!s || !e) {
+        alert('Please select both From and To dates.');
+        return;
+      }
+      if (s > e) {
+        alert('From date cannot be after To date.');
+        return;
+      }
+      customStartDate = s;
+      customEndDate = e;
+      const resetBtn = document.getElementById('btnResetDates');
+      if (resetBtn) resetBtn.classList.remove('hidden');
+
+      // Clear quick timeframe selection
+      document.querySelectorAll('.tf-btn').forEach(b => {
+        b.classList.remove('bg-white', 'text-black', 'shadow');
+        b.classList.add('text-zinc-400');
+      });
+
+      currentPage = 1;
+      fetchDashboardStats();
+      loadApplications();
+    }
+
+    function resetDateRangeFilter() {
+      customStartDate = null;
+      customEndDate = null;
+      const sInput = document.getElementById('dateStart');
+      const eInput = document.getElementById('dateEnd');
+      if (sInput) sInput.value = '';
+      if (eInput) eInput.value = '';
+      const resetBtn = document.getElementById('btnResetDates');
+      if (resetBtn) resetBtn.classList.add('hidden');
+      setTimeframe('all');
+    }
+
+    function renderPortalChart(portalCounts) {
+      const ctx = document.getElementById('portalChart').getContext('2d');
+      if (portalChartInstance) portalChartInstance.destroy();
+
+      const portalLabels = ['LinkedIn', 'Y Combinator', 'Hirist', 'Cutshort', 'Indeed', 'APIs'];
+      const portalData = [
+        portalCounts.linkedin || 0,
+        portalCounts.ycombinator || 0,
+        portalCounts.hirist || 0,
+        portalCounts.cutshort || 0,
+        portalCounts.indeed || 0,
+        portalCounts.api_aggregators || 0,
+      ];
+      // User specified colors:
+      // LinkedIn = Blue (#0077b5), Y Combinator = Orange (#ff6600), Hirist = Red (#dc2626),
+      // Cutshort = Dark Ash (#4b5563), Indeed = Green (#10b981), APIs = Purple (#8b5cf6)
+      const colors = ['#0077b5', '#ff6600', '#dc2626', '#4b5563', '#10b981', '#8b5cf6'];
+
+      portalChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: portalLabels,
+          datasets: [{
+            data: portalData,
+            backgroundColor: colors,
+            borderColor: '#09090b',
+            borderWidth: 2,
+            hoverOffset: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#18181b',
+              titleColor: '#ffffff',
+              bodyColor: '#d4d4d8',
+              borderColor: 'rgba(255, 255, 255, 0.2)',
+              borderWidth: 1,
+              padding: 10
+            }
+          },
+          cutout: '72%'
+        }
+      });
+
+      // Update Legends below chart with portal colors
+      const legendDiv = document.getElementById('portalLegends');
+      legendDiv.innerHTML = portalLabels.map((lbl, i) => `
+        <div class="flex items-center space-x-1.5">
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${colors[i]}"></span>
+          <span class="text-zinc-400 truncate text-[11px]">${lbl}:</span>
+          <span class="font-bold text-white text-xs">${portalData[i]}</span>
+        </div>
+      `).join('');
+    }
+
+    function setTimeframe(tf) {
+      customStartDate = null;
+      customEndDate = null;
+      const sInput = document.getElementById('dateStart');
+      const eInput = document.getElementById('dateEnd');
+      if (sInput) sInput.value = '';
+      if (eInput) eInput.value = '';
+      const resetBtn = document.getElementById('btnResetDates');
+      if (resetBtn) resetBtn.classList.add('hidden');
+
+      currentTimeframe = tf;
+      document.querySelectorAll('.tf-btn').forEach(b => {
+        b.classList.remove('bg-white', 'text-black', 'shadow');
+        b.classList.add('text-zinc-400');
+      });
+      document.getElementById(`tf-${tf}`).classList.add('bg-white', 'text-black', 'shadow');
+      document.getElementById(`tf-${tf}`).classList.remove('text-zinc-400');
+      currentPage = 1;
+      fetchDashboardStats();
+      loadApplications();
+    }
+
+    // ── 2. Applications Table Loader ────────────────────────────────
+    function debounceSearch() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        currentPage = 1;
+        loadApplications();
+      }, 300);
+    }
+
+    async function loadApplications() {
+      const portal = document.getElementById('portalFilter').value;
+      const status = document.getElementById('statusFilter').value;
+      const search = document.getElementById('tableSearch').value;
+
+      try {
+        let appUrl = `/api/kknn/applications?portal=${portal}&status=${status}&search=${encodeURIComponent(search)}&page=${currentPage}&limit=25`;
+        if (customStartDate && customEndDate) {
+          appUrl += `&start_date=${customStartDate}&end_date=${customEndDate}`;
+        }
+        const res = await fetch(appUrl);
+        const data = await res.json();
+        
+        const tbody = document.getElementById('applicationsTableBody');
+        if (!data.items || data.items.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-zinc-500">No applications matched the selected filters.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.items.map(app => {
+          let scoreBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-zinc-900 text-zinc-500 border border-zinc-800">N/A</span>`;
+          if (app.match_score) {
+            const sc = app.match_score;
+            const scColor = sc >= 85 ? 'text-white bg-zinc-800 border-white/40' : sc >= 65 ? 'text-zinc-300 bg-zinc-900 border-zinc-700' : 'text-zinc-500 bg-zinc-950 border-zinc-800';
+            scoreBadge = `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold border ${scColor}">${sc}%</span>`;
+          }
+
+          let statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-zinc-900 text-zinc-300 border border-zinc-800">${app.status}</span>`;
+          if (app.status === 'APPLIED') statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-white text-black border border-white">APPLIED</span>`;
+          if (app.status === 'DRY_RUN') statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-zinc-800 text-zinc-200 border border-zinc-700">DRY RUN</span>`;
+          if (app.status === 'SKIPPED_EXP') statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-zinc-900 text-zinc-400 border border-zinc-800">EXP FILTERED</span>`;
+
+          return `
+            <tr class="hover:bg-zinc-900/60 transition-colors">
+              <td class="px-4 py-3 font-medium text-white truncate max-w-xs">${app.title}</td>
+              <td class="px-4 py-3 text-zinc-300 truncate max-w-xs">${app.company}</td>
+              <td class="px-4 py-3 text-zinc-400">${app.portal}</td>
+              <td class="px-4 py-3 text-center">${scoreBadge}</td>
+              <td class="px-4 py-3">${statusBadge}</td>
+              <td class="px-4 py-3 text-zinc-400 text-xs">${app.created_at || 'Recent'}</td>
+              <td class="px-4 py-3 text-right space-x-2">
+                ${app.job_url ? `<a href="${app.job_url}" target="_blank" class="p-1.5 hover:bg-zinc-800 rounded-lg text-white inline-block border border-zinc-800" title="Open Job Listing"><i data-lucide="external-link" class="w-3.5 h-3.5"></i></a>` : ''}
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        document.getElementById('pageInfo').innerText = `Showing page ${data.page} of ${data.total_pages || 1} (${data.total} total)`;
+        document.getElementById('btnPrevPage').disabled = data.page <= 1;
+        document.getElementById('btnNextPage').disabled = data.page >= data.total_pages;
+
+        lucide.createIcons();
+      } catch (err) {
+        console.error('Applications load error:', err);
+      }
+    }
+
+    function prevPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        loadApplications();
+      }
+    }
+
+    function nextPage() {
+      currentPage++;
+      loadApplications();
+    }
+
+    // ── 3. Recruiter Outreach Table ─────────────────────────────────
+    async function loadRecruiters() {
+      try {
+        const res = await fetch('/api/kknn/recruiters');
+        const data = await res.json();
+        const tbody = document.getElementById('recruitersTableBody');
+        if (!data || data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-zinc-500">No recruiter outreach records found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.map(r => `
+          <tr class="hover:bg-zinc-900/60 transition-colors">
+            <td class="px-4 py-3 font-semibold text-white">${r.name}</td>
+            <td class="px-4 py-3 text-zinc-300">${r.company}</td>
+            <td class="px-4 py-3 text-zinc-200 font-mono text-xs">${r.email}</td>
+            <td class="px-4 py-3 text-zinc-400">${r.title}</td>
+            <td class="px-4 py-3"><span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-800 text-zinc-200 border border-zinc-700">SENT</span></td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Recruiters error:', err);
+      }
+    }
+
+    // ── 4. Reports and Resumes Loader ───────────────────────────────
+    async function loadReportsAndResumes() {
+      try {
+        // Load Reports
+        const repRes = await fetch('/api/kknn/reports');
+        const repData = await repRes.json();
+        const repDiv = document.getElementById('reportsList');
+        if (repData && repData.length > 0) {
+          repDiv.innerHTML = repData.map(r => `
+            <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 transition-all">
+              <div class="flex items-center space-x-3 truncate">
+                <i data-lucide="file-spreadsheet" class="w-5 h-5 text-zinc-300 shrink-0"></i>
+                <div class="truncate">
+                  <div class="font-medium text-white text-xs truncate">${r.filename}</div>
+                  <div class="text-[10px] text-zinc-500">${r.created_at} &bull; ${r.size_kb} KB</div>
+                </div>
+              </div>
+              <a href="${r.download_url}" target="_blank" download class="px-2.5 py-1 bg-white hover:bg-zinc-200 text-black rounded-lg text-xs font-semibold flex items-center gap-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> Download
+              </a>
+            </div>
+          `).join('');
+        } else {
+          repDiv.innerHTML = `<div class="p-4 rounded-xl bg-zinc-900 text-center text-xs text-zinc-500">No Excel reports generated yet.</div>`;
+        }
+
+        // Load Resumes
+        const resRes = await fetch('/api/kknn/resumes');
+        const resData = await resRes.json();
+        const resDiv = document.getElementById('resumesList');
+        if (resData && resData.length > 0) {
+          resDiv.innerHTML = resData.slice(0, 20).map(r => `
+            <div class="flex items-center justify-between p-3 rounded-xl bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 transition-all">
+              <div class="flex items-center space-x-3 truncate">
+                <i data-lucide="file-text" class="w-5 h-5 text-zinc-300 shrink-0"></i>
+                <div class="truncate">
+                  <div class="font-medium text-white text-xs truncate">${r.filename}</div>
+                  <div class="text-[10px] text-zinc-500">${r.created_at} &bull; ${r.size_kb} KB</div>
+                </div>
+              </div>
+              <a href="${r.download_url}" target="_blank" class="px-2.5 py-1 bg-white hover:bg-zinc-200 text-black rounded-lg text-xs font-semibold flex items-center gap-1">
+                <i data-lucide="eye" class="w-3.5 h-3.5"></i> View PDF
+              </a>
+            </div>
+          `).join('');
+        } else {
+          resDiv.innerHTML = `<div class="p-4 rounded-xl bg-zinc-900 text-center text-xs text-zinc-500">No tailored resumes generated yet.</div>`;
+        }
+
+        lucide.createIcons();
+      } catch (err) {
+        console.error('Reports load error:', err);
+      }
+    }
+
+    // ── 5. Phase 1: Sourced Connector Jobs Loader ────────────────────
+    function debounceSourcedSearch() {
+      clearTimeout(debounceSourcedTimer);
+      debounceSourcedTimer = setTimeout(() => {
+        currentSourcedPage = 1;
+        loadSourcedJobs();
+      }, 300);
+    }
+
+    async function loadSourcedJobs() {
+      const searchInput = document.getElementById('sourcedSearch');
+      const search = searchInput ? searchInput.value : '';
+
+      try {
+        let url = `/api/kknn/applications?phase=1&page=${currentSourcedPage}&limit=25&search=${encodeURIComponent(search)}`;
+        if (customStartDate && customEndDate) {
+          url += `&start_date=${customStartDate}&end_date=${customEndDate}`;
+        }
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const tbody = document.getElementById('sourcedTableBody');
+        if (!data.items || data.items.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-zinc-500">No sourced connector jobs found.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.items.map(job => {
+          let scoreBadge = `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-zinc-900 text-zinc-500 border border-zinc-800">N/A</span>`;
+          if (job.match_score) {
+            const sc = job.match_score;
+            const scColor = sc >= 85 ? 'text-white bg-zinc-800 border-white/40' : sc >= 65 ? 'text-zinc-300 bg-zinc-900 border-zinc-700' : 'text-zinc-500 bg-zinc-950 border-zinc-800';
+            scoreBadge = `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold border ${scColor}">${sc}%</span>`;
+          }
+
+          return `
+            <tr class="hover:bg-zinc-900/60 transition-colors">
+              <td class="px-4 py-3 font-medium text-white truncate max-w-xs">${job.title}</td>
+              <td class="px-4 py-3 text-zinc-300 truncate max-w-xs">${job.company}</td>
+              <td class="px-4 py-3 text-zinc-400">${job.portal}</td>
+              <td class="px-4 py-3 text-center">${scoreBadge}</td>
+              <td class="px-4 py-3 text-zinc-400 text-xs">${job.created_at || 'Recent'}</td>
+              <td class="px-4 py-3 text-right">
+                ${job.job_url ? `
+                  <a href="${job.job_url}" target="_blank" class="px-3 py-1.5 bg-zinc-800 hover:bg-white hover:text-black rounded-lg text-zinc-200 text-xs font-semibold inline-flex items-center gap-1.5 transition-all border border-zinc-700">
+                    <span>Apply Manually</span>
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                  </a>` : '<span class="text-zinc-500 text-xs">No Link</span>'}
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        const pageInfo = document.getElementById('sourcedPageInfo');
+        if (pageInfo) {
+          pageInfo.innerText = `Showing page ${data.page} of ${data.total_pages || 1} (${data.total} total sourced)`;
+        }
+        const prevBtn = document.getElementById('btnPrevSourcedPage');
+        const nextBtn = document.getElementById('btnNextSourcedPage');
+        if (prevBtn) prevBtn.disabled = data.page <= 1;
+        if (nextBtn) nextBtn.disabled = data.page >= data.total_pages;
+
+        lucide.createIcons();
+      } catch (err) {
+        console.error('Sourced jobs error:', err);
+      }
+    }
+
+    function prevSourcedPage() {
+      if (currentSourcedPage > 1) {
+        currentSourcedPage--;
+        loadSourcedJobs();
+      }
+    }
+
+    function nextSourcedPage() {
+      currentSourcedPage++;
+      loadSourcedJobs();
+    }
+
+    // ── 6. Daily Logs & Historical Log Selection ────────────────────
+    async function loadAvailableLogDates() {
+      try {
+        const res = await fetch('/api/kknn/logs/dates');
+        const dates = await res.json();
+        const select = document.getElementById('logDateSelect');
+        if (select && dates && dates.length > 0) {
+          const currentVal = select.value;
+          select.innerHTML = dates.map((d, i) => `
+            <option value="${d.date}">${d.label}</option>
+          `).join('');
+          if (currentVal) select.value = currentVal;
+        }
+      } catch (err) {
+        console.debug('Log dates error:', err);
+      }
+    }
+
+    function onLogDateChanged() {
+      const select = document.getElementById('logDateSelect');
+      const selectedDate = select ? select.value : '';
+      loadLogsForSelectedDate(selectedDate);
+    }
+
+    async function loadLogsForSelectedDate(dateStr) {
+      try {
+        const url = dateStr ? `/api/kknn/logs?date=${dateStr}&limit=300` : '/api/kknn/logs?limit=300';
+        const res = await fetch(url);
+        const data = await res.json();
+        const terminal = document.getElementById('consoleTerminal');
+        if (!data.log_tail || data.log_tail.length === 0) {
+          terminal.innerHTML = `<div class="text-zinc-500">[SYSTEM] No log entries recorded for ${data.date || 'selected date'}.</div>`;
+          return;
+        }
+
+        terminal.innerHTML = data.log_tail.map(line => {
+          let color = 'text-zinc-300';
+          if (line.includes('ERROR') || line.includes('❌')) color = 'text-white font-bold underline';
+          else if (line.includes('WARNING') || line.includes('⚠️')) color = 'text-zinc-400';
+          else if (line.includes('APPLIED') || line.includes('🎉') || line.includes('✅')) color = 'text-white font-bold';
+          else if (line.includes('INFO')) color = 'text-zinc-300';
+          return `<div class="${color}">${line}</div>`;
+        }).join('');
+        terminal.scrollTop = terminal.scrollHeight;
+      } catch (err) {
+        console.error('Logs fetch error:', err);
+      }
+    }
+
+    // ── 7. Tab Switching ────────────────────────────────────────────
+    function switchTab(tabId) {
+      currentTab = tabId;
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('border-white', 'text-white');
+        b.classList.add('border-transparent', 'text-zinc-400');
+      });
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+      const activeTabBtn = document.getElementById(`btn-${tabId}`);
+      if (activeTabBtn) {
+        activeTabBtn.classList.add('border-white', 'text-white');
+        activeTabBtn.classList.remove('border-transparent', 'text-zinc-400');
+      }
+      const targetContent = document.getElementById(tabId);
+      if (targetContent) {
+        targetContent.classList.remove('hidden');
+      }
+    }
+
+    // ── 8. Agent Trigger & Process Management ───────────────────────
+    function openTriggerModal() {
+      document.getElementById('triggerModal').classList.remove('hidden');
+    }
+
+    function closeTriggerModal() {
+      document.getElementById('triggerModal').classList.add('hidden');
+    }
+
+    function selectTarget(count) {
+      selectedTargetCount = count;
+      document.querySelectorAll('.target-btn').forEach(b => {
+        b.classList.remove('border-white', 'bg-white', 'text-black', 'font-bold');
+        b.classList.add('border-zinc-800', 'bg-zinc-900', 'text-zinc-400', 'font-medium');
+      });
+      const activeBtn = document.querySelector(`[data-target="${count}"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('border-white', 'bg-white', 'text-black', 'font-bold');
+        activeBtn.classList.remove('border-zinc-800', 'bg-zinc-900', 'text-zinc-400', 'font-medium');
+      }
+    }
+
+    async function executeAgentTrigger() {
+      const action = document.getElementById('triggerAction').value;
+      const dryRun = document.getElementById('dryRunToggle').checked;
+      
+      const portals = [];
+      if (document.getElementById('portal-linkedin').checked) portals.push('linkedin');
+      if (document.getElementById('portal-ycombinator').checked) portals.push('ycombinator');
+      if (document.getElementById('portal-hirist').checked) portals.push('hirist');
+      if (document.getElementById('portal-cutshort').checked) portals.push('cutshort');
+      if (document.getElementById('portal-indeed').checked) portals.push('indeed');
+
+      closeTriggerModal();
+      switchTab('tab-logs');
+
+      try {
+        const res = await fetch('/api/kknn/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: action,
+            target_count: selectedTargetCount,
+            dry_run: dryRun,
+            portals: portals,
+          })
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          alert(`Trigger failed: ${result.detail || 'Process already running'}`);
+        } else {
+          startStatusPolling();
+        }
+      } catch (err) {
+        alert(`Trigger error: ${err.message}`);
+      }
+    }
+
+    async function stopAgentProcess() {
+      try {
+        await fetch('/api/kknn/trigger/stop', { method: 'POST' });
+      } catch (err) {
+        console.error('Stop error:', err);
+      }
+    }
+
+    function clearConsole() {
+      document.getElementById('consoleTerminal').innerHTML = '<div class="text-zinc-500">[CONSOLE CLEARED]</div>';
+    }
+
+    function startStatusPolling() {
+      if (logPollInterval) clearInterval(logPollInterval);
+      logPollInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/kknn/trigger/status');
+          const status = await res.json();
+
+          const badge = document.getElementById('statusBadge');
+          const badgeText = document.getElementById('statusText');
+          const pulse = document.getElementById('consolePulse');
+
+          if (status.is_running) {
+            badge.className = 'hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-zinc-800 border border-white/40 text-white text-xs font-semibold';
+            badgeText.innerText = `AGENT RUNNING (${status.task_type.toUpperCase()})`;
+            pulse.className = 'w-3 h-3 rounded-full bg-white pulse-dot';
+          } else {
+            badge.className = 'hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs font-medium';
+            badgeText.innerText = 'SYSTEM ONLINE';
+            pulse.className = 'w-3 h-3 rounded-full bg-zinc-400';
+          }
+
+          // Update terminal log tail only if viewing live/today
+          const dateSelect = document.getElementById('logDateSelect');
+          const todayIso = new Date().toISOString().split('T')[0];
+          const isLiveViewing = !dateSelect || !dateSelect.value || dateSelect.value === todayIso;
+
+          if (isLiveViewing && status.log_tail && status.log_tail.length > 0) {
+            const terminal = document.getElementById('consoleTerminal');
+            terminal.innerHTML = status.log_tail.map(line => {
+              let color = 'text-zinc-300';
+              if (line.includes('ERROR') || line.includes('❌')) color = 'text-white font-bold underline';
+              else if (line.includes('WARNING') || line.includes('⚠️')) color = 'text-zinc-400';
+              else if (line.includes('APPLIED') || line.includes('🎉') || line.includes('✅')) color = 'text-white font-bold';
+              else if (line.includes('INFO')) color = 'text-zinc-300';
+              return `<div class="${color}">${line}</div>`;
+            }).join('');
+            terminal.scrollTop = terminal.scrollHeight;
+          }
+
+        } catch (err) {
+          console.debug('Polling error:', err);
+        }
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

@@ -278,7 +278,7 @@ def build_pdf(filename: str):
                        ┌────────────────────────────────────────────────┐
                        │            MULTI-CHANNEL TELEMETRY             │
                        │  • Multi-Tab Daily Excel Report (openpyxl)     │
-                       │  • WhatsApp Daily Alerts & Top Matches         │
+                       │  • Dedicated Recruiter & HR Alerts              │
                        │  • Email Application Tracking Log              │
                        └───────────────────┬────────────────────────────┘
                                            ▼
@@ -511,8 +511,7 @@ sources:
 │   │   ├── report_service.py     # openpyxl multi-tab Excel generator
 │   │   ├── resume_service.py     # Dynamic ATS 1-page PDF builder
 │   │   ├── scheduler_service.py  # APScheduler 24/7 6-hour cron service
-│   │   ├── scoring_service.py    # Gemini AI semantic scoring
-│   │   └── whatsapp_service.py   # CallMeBot & Meta WhatsApp alerts
+│   │   └── scoring_service.py    # Gemini AI semantic scoring
 │   └── utils/                    # Validators & Helper Utilities
 │       ├── email_validator.py    # Explicit HR email parser & DNS validator
 │       ├── experience_analyzer.py # Dedicated 0-2 yrs ExperienceAnalyzer
@@ -527,7 +526,6 @@ sources:
 ├── scripts/                      # Operational Scripts & Tools
 │   ├── run_agent.py              # CLI runner for single pipeline execution
 │   ├── setup_gmail_token.py      # Gmail OAuth2 token generator
-│   ├── setup_whatsapp.py         # WhatsApp CallMeBot diagnostic tool
 │   └── generate_architecture_pdf.py # Architecture PDF builder
 ├── main.py                       # FastAPI 24/7 Server & Background Scheduler Entrypoint
 ├── requirements.txt              # Production Python dependencies

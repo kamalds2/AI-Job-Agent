@@ -113,7 +113,6 @@ class ReportService:
             ("Recruiter Emails Discovered", stats.get("recruiter_emails_found", 0)),
             ("Recruiter Outreach Sent (Stream A)", stats.get("emails_sent", 0)),
             ("Direct Apply Links Prepared (Stream B)", stats.get("direct_applied", 0)),
-            ("WhatsApp Match Alerts Sent", "Yes" if stats.get("whatsapp_sent") else "No"),
         ]
 
         for i, (key, val) in enumerate(rows, start=3):

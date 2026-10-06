@@ -65,18 +65,3 @@ def build_email_user_prompt(
   +91-9398872099
 - Return JSON only.
 """
-
-
-WHATSAPP_NOTIFICATION_TEMPLATE = """🤖 *AI Job Agent — Match Alert*
-
-📋 *Role:* {title}
-🏢 *Company:* {company}
-⭐ *Match Score:* {score}/100
-🔗 *Apply:* {url}
-
-💡 *Why it matches:*
-{reasoning}
-
-📧 _Email {email_status}_
-📄 _Resume {resume_status}_
-"""

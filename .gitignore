@@ -26,9 +26,14 @@ env/
 *.sqlite
 *.sqlite3
 
+# Chrome profiles & local session data
+data/chrome_profile/
+screenshots/
+
 # Reports & generated resumes — local output
 reports/
-resumes/tailored_*/
+resumes/*/
+resumes/*.zip
 resumes/*.pdf
 !resumes/Kamal_Kumar_Java_AI_Developer_ATS.pdf
 

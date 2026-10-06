@@ -24,12 +24,12 @@ logger = logging.getLogger(__name__)
 
 # Target role searches for Kamal's profile
 NAUKRI_SEARCHES = [
-    {"keyword": "java backend developer",        "exp_min": 3, "exp_max": 8},
-    {"keyword": "spring boot microservices",      "exp_min": 3, "exp_max": 8},
-    {"keyword": "python backend engineer",        "exp_min": 3, "exp_max": 8},
-    {"keyword": "aws cloud engineer india",       "exp_min": 3, "exp_max": 8},
-    {"keyword": "senior software engineer java",  "exp_min": 5, "exp_max": 12},
-    {"keyword": "ai java developer",              "exp_min": 2, "exp_max": 8},
+    {"keyword": "java backend developer",        "exp_min": 0, "exp_max": 3},
+    {"keyword": "spring boot microservices",      "exp_min": 0, "exp_max": 3},
+    {"keyword": "python backend engineer",        "exp_min": 0, "exp_max": 3},
+    {"keyword": "aws cloud engineer india",       "exp_min": 0, "exp_max": 3},
+    {"keyword": "senior software engineer java",  "exp_min": 0, "exp_max": 3},
+    {"keyword": "ai java developer",              "exp_min": 0, "exp_max": 3},
 ]
 
 NAUKRI_HEADERS = {

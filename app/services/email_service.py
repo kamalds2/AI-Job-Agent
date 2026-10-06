@@ -83,7 +83,24 @@ def _template_email(
 ) -> dict:
     """Professional fallback template when LLMs are unavailable, strictly aligned with 0-2 yrs candidate profile."""
     greeting = f"Dear {recruiter_name}," if recruiter_name else "Dear Hiring Manager,"
-    subject = f"Application: {job_title} at {company}"
+    
+    clean_company = (company or "").strip()
+    has_valid_company = bool(
+        clean_company and clean_company.lower() not in [
+            "hiring organization", "hiring team", "hiring company", "none", "n/a", "na", ""
+        ]
+    )
+
+    clean_title = (job_title or "Software Engineer").strip()
+
+    if has_valid_company:
+        subject = f"Application: {clean_title} at {clean_company}"
+        opening_line = f"I am writing to express my strong interest in the {clean_title} position at {clean_company}."
+        interest_line = f"I am excited about {clean_company}'s engineering initiatives and confident that my practical skills in backend engineering align well with the requirements for the {clean_title} role."
+    else:
+        subject = f"Application for {clean_title} Role"
+        opening_line = f"I am writing to express my strong interest in the {clean_title} position."
+        interest_line = f"I am excited about the opportunity to contribute to your engineering initiatives and confident that my practical skills in backend engineering align well with the requirements for the {clean_title} role."
 
     jd_lower = (job_description or "").lower()
     bullets = []
@@ -113,13 +130,13 @@ def _template_email(
 
     body = f"""{greeting}
 
-I am writing to express my strong interest in the {job_title} position at {company}.
+{opening_line}
 
 I am an early-career Backend & Software Engineer with 1+ years of hands-on experience building scalable microservices, REST APIs, and modern backend systems. My core technical background includes:
 
 {bullets_text}
 
-I am excited about {company}'s work and confident that my practical skills in backend engineering and cloud deployments align well with the requirements for the {job_title} role.
+{interest_line}
 
 I have attached my tailored ATS resume for your review. I would welcome the opportunity to discuss how my technical skills can add immediate value to your engineering team.
 
@@ -252,7 +269,13 @@ class EmailService:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
-            return json.loads(content.strip())
+            data = json.loads(content.strip())
+            if isinstance(data, dict):
+                subj = data.get("subject", "")
+                if any(bad in subj.lower() for bad in ["reaction", "reactions", "hiring organization", "none", "#"]):
+                    data["subject"] = None
+                return data
+            return None
         except Exception:
             return None
 

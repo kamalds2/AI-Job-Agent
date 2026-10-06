@@ -14,6 +14,8 @@ DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///job_agent.db")
 
 # ── LLM ──────────────────────────────────────────────────
 GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
+GEMINI_API_KEYS_RAW: str = os.getenv("GEMINI_API_KEYS", "")
+GEMINI_BACKUP_KEY: Optional[str] = os.getenv("GEMINI_BACKUP_KEY")
 GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 ANTHROPIC_API_KEY: Optional[str] = os.getenv("ANTHROPIC_API_KEY")
 OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
@@ -27,11 +29,6 @@ GMAIL_REFRESH_TOKEN: Optional[str] = os.getenv("GMAIL_REFRESH_TOKEN")
 GMAIL_APP_PASSWORD: Optional[str] = os.getenv("GMAIL_APP_PASSWORD")
 EMAIL_ADDRESS: Optional[str] = os.getenv("EMAIL_ADDRESS")
 
-# ── WhatsApp ──────────────────────────────────────────────
-WHATSAPP_TOKEN: Optional[str] = os.getenv("WHATSAPP_TOKEN")
-WHATSAPP_PHONE_ID: Optional[str] = os.getenv("WHATSAPP_PHONE_ID")
-WHATSAPP_TO_NUMBER: Optional[str] = os.getenv("WHATSAPP_TO_NUMBER")
-CALLMEBOT_APIKEY: Optional[str] = os.getenv("CALLMEBOT_APIKEY")
 
 # ── Job Board Credentials ─────────────────────────────────
 JOB_BOARD_EMAIL: str = os.getenv("JOB_BOARD_EMAIL", "kamalkumar.doddi@gmail.com")
@@ -55,7 +52,9 @@ LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 # ── Candidate Profile (for AI scoring context) ────────────
 CANDIDATE_NAME: str = os.getenv("CANDIDATE_NAME", "Doddi Kamal Kumar")
 CANDIDATE_PHONE: str = os.getenv("CANDIDATE_PHONE", "+91-9398872099")
+CANDIDATE_EMAIL: str = os.getenv("CANDIDATE_EMAIL", os.getenv("EMAIL_ADDRESS", "kamalkumar.doddi@gmail.com"))
 CANDIDATE_LINKEDIN: str = os.getenv("CANDIDATE_LINKEDIN", "https://linkedin.com/in/kamal-doddi-6422b7279")
+CANDIDATE_LOCATION: str = os.getenv("CANDIDATE_LOCATION", "Hyderabad, India")
 CANDIDATE_GITHUB: str = os.getenv("CANDIDATE_GITHUB", "https://github.com/kamalds2")
 CANDIDATE_EXPERIENCE_YEARS: str = os.getenv("CANDIDATE_EXPERIENCE_YEARS", "0-2 years")
 CANDIDATE_TARGET_ROLES: list[str] = [

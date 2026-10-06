@@ -23,36 +23,23 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def _run_agent_job():
-    """APScheduler job function — runs the agent pipeline and LinkedIn recruiter feed scanner."""
+    """APScheduler job function — runs the master multi-agent pipeline."""
+    import sys
     import asyncio
-    from app.agents.orchestrator import run_agent_sync
-    from app.services.linkedin_feed_scanner import LinkedInFeedScanner
+    if sys.platform == "win32":
+        try:
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        except Exception:
+            pass
 
-    logger.info("⏰ Scheduled agent run starting (Job Boards & ATS Pipeline)...")
-    try:
-        result = run_agent_sync()
-        logger.info(
-            f"✅ Scheduled run complete — "
-            f"new: {result.get('new_jobs_count', 0)}, "
-            f"qualified: {len(result.get('qualified_job_ids', []))}"
-        )
-    except Exception as e:
-        logger.error(f"❌ Scheduled ATS run failed: {e}")
+    from app.agents.orchestrator import run_full_multi_agent_pipeline_sync
 
-    logger.info("🔍 Scheduled LinkedIn Recruiter Feed & Outreach starting...")
+    logger.info("⏰ Scheduled multi-agent job run starting...")
     try:
-        scanner = LinkedInFeedScanner()
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        recruiter_result = loop.run_until_complete(scanner.scan_posts_and_outreach(dry_run=False))
-        loop.close()
-        logger.info(
-            f"✅ Scheduled LinkedIn Outreach complete — "
-            f"posts: {recruiter_result.get('posts_scanned', 0)}, "
-            f"sent: {recruiter_result.get('emails_sent', 0)}"
-        )
+        summary = run_full_multi_agent_pipeline_sync(dry_run=False)
+        logger.info("✅ Scheduled multi-agent pipeline completed successfully!")
     except Exception as e:
-        logger.error(f"❌ Scheduled LinkedIn feed scan failed: {e}")
+        logger.error(f"❌ Scheduled multi-agent run failed: {e}", exc_info=True)
 
 
 def start_scheduler():
@@ -76,8 +63,13 @@ def start_scheduler():
     )
 
     _scheduler.start()
+    next_run = None
+    for j in _scheduler.get_jobs():
+        if j.id == "job_agent_run":
+            next_run = j.next_run_time
+            break
     logger.info(
-        "⏰ Scheduler started — 24/7 fixed runs scheduled at 06:00 AM, 12:00 PM, 06:00 PM, 12:00 AM IST"
+        f"⏰ Scheduler active — 24/7 fixed runs scheduled at 06:00 AM, 12:00 PM, 06:00 PM, 12:00 AM IST (Next Run: {next_run})"
     )
 
 

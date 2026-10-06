@@ -27,10 +27,6 @@ class AgentState(TypedDict):
     # ── Email drafting & sending ───────────────────────────────
     email_drafts: list[dict]     # [{job_id, to, subject, body}]
     emails_sent: int
-
-    # ── Notifications ──────────────────────────────────────────
-    whatsapp_sent: bool
-
     # ── Report ─────────────────────────────────────────────────
     report_path: Optional[str]
 

@@ -27,7 +27,6 @@ from app.services.scoring_service import ScoringService
 from app.services.mock_scoring_service import mock_batch_score
 from app.services.resume_service import ResumeService
 from app.services.email_service import EmailService
-from app.services.whatsapp_service import WhatsAppService
 from app.services.report_service import ReportService
 
 logger = logging.getLogger(__name__)
@@ -514,65 +513,13 @@ def make_email_node(db: Session):
     return email_node
 
 
-def make_notify_node():
-    """
-    Node 5: WhatsApp Notification
-    Sends top job matches + daily summary via WhatsApp.
-    """
-    def notify_node(state: AgentState) -> AgentState:
-        logger.info("📱 [Node 5] WhatsApp Notification starting...")
-        logs = list(state.get("logs", []))
-        errors = list(state.get("errors", []))
-
-        try:
-            wa_service = WhatsAppService()
-            scored_jobs = state.get("scored_jobs", [])
-            qualified_ids = set(state.get("qualified_job_ids", []))
-
-            # Send individual alerts for top jobs
-            top_jobs = sorted(scored_jobs, key=lambda x: x.get("score", 0), reverse=True)
-            for job in top_jobs[:3]:  # Top 3 matches
-                if job.get("job_id") in qualified_ids:
-                    wa_service.send_job_match_alert(
-                        title=job.get("title", ""),
-                        company=job.get("company", ""),
-                        score=job.get("score", 0),
-                        url=job.get("job_url", ""),
-                        reasoning=job.get("reasoning", ""),
-                        email_sent=True,
-                        resume_generated=job.get("job_id") in state.get("resume_paths", {}),
-                    )
-
-            # Send daily summary
-            wa_service.send_daily_summary({
-                "date": date.today().strftime("%Y-%m-%d"),
-                "total_fetched": state.get("raw_jobs_count", 0),
-                "new_jobs": state.get("new_jobs_count", 0),
-                "qualified": len(qualified_ids),
-                "threshold": MATCH_SCORE_THRESHOLD,
-                "emails_sent": state.get("emails_sent", 0),
-                "resumes_generated": len(state.get("resume_paths", {})),
-                "top_jobs": top_jobs[:5],
-            })
-
-            logs.append("WhatsApp notifications sent")
-            return {**state, "whatsapp_sent": True, "logs": logs, "errors": errors}
-
-        except Exception as e:
-            logger.error(f"❌ Notify node failed: {e}")
-            errors.append(f"notify_node: {e}")
-            return {**state, "whatsapp_sent": False, "errors": errors}
-
-    return notify_node
-
-
 def make_report_node():
     """
-    Node 6: Excel Report Generation & Emailing
+    Node 5: Excel Report Generation & Emailing
     Generates daily multi-tab Excel report and emails it to the candidate.
     """
     def report_node(state: AgentState) -> AgentState:
-        logger.info("📊 [Node 6] Report Generation starting...")
+        logger.info("📊 [Node 5] Report Generation starting...")
         logs = list(state.get("logs", []))
         errors = list(state.get("errors", []))
 
@@ -592,7 +539,6 @@ def make_report_node():
                 "emails_sent": state.get("emails_sent", 0),
                 "direct_applied": state.get("direct_applied", 0),
                 "resumes_generated": len(state.get("resume_paths", {})),
-                "whatsapp_sent": state.get("whatsapp_sent", False),
             }
 
             report_path = report_service.generate_daily_report(

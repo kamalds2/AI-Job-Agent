@@ -11,6 +11,7 @@ import json
 import logging
 import re
 import sys
+import time
 from pathlib import Path
 
 import anthropic
@@ -90,6 +91,13 @@ class ResumeService:
         self.resumes_dir = Path(RESUMES_DIR)
         self.resumes_dir.mkdir(parents=True, exist_ok=True)
 
+    @property
+    def master_resume_text(self) -> str:
+        """Cached property for master resume text."""
+        if not hasattr(self, "_cached_master_text") or not self._cached_master_text:
+            self._cached_master_text = self.extract_resume_text()
+        return self._cached_master_text
+
     def extract_resume_text(self) -> str:
         """Extract plain text from master resume PDF using PyMuPDF."""
         if not self.master_path.exists():
@@ -112,6 +120,7 @@ class ResumeService:
         job_title: str,
         company: str,
         job_description: str,
+        exp_years: float = 1.5,
     ) -> dict:
         """
         Generate a tailored resume for a specific job using Gemini / Claude / OpenAI.
@@ -186,13 +195,14 @@ class ResumeService:
                 except Exception as e:
                     logger.warning(f"[OpenAI] Resume tailoring failed: {e}")
 
-        return self._generate_fallback_tailored_data(job_title, company, job_description)
+        return self._generate_fallback_tailored_data(job_title, company, job_description, exp_years=exp_years)
 
     def _generate_fallback_tailored_data(
         self,
         job_title: str,
         company: str,
         job_description: str,
+        exp_years: float = 1.5,
     ) -> dict:
         """
         Extract required skills from JD and dynamically infuse them into the candidate's
@@ -200,146 +210,159 @@ class ResumeService:
         """
         text_corpus = (job_title + " " + job_description).lower()
 
-        # ── 1. Match Backend & API Skills ─────────────────────────
+        # ── 1. Match Backend & Framework Skills ───────────────────
         backend_pool = [
-            ("Java", "Java 17/21"), ("Spring Boot", "Spring Boot 3"), ("Microservices", "Microservices Architecture"),
-            ("REST", "RESTful APIs"), ("Python", "Python (FastAPI)"), ("Hibernate", "Hibernate/JPA"),
-            ("Spring Cloud", "Spring Cloud"), ("FastAPI", "FastAPI"), ("Django", "Django/Flask"),
-            ("Kafka", "Apache Kafka"), ("RabbitMQ", "RabbitMQ"), ("GraphQL", "GraphQL"),
+            ("Java", "Java"), ("Spring Boot", "Spring Boot"), ("Spring Security", "Spring Security"),
+            ("Spring Data", "Spring Data JPA"), ("REST", "REST APIs"), ("Hibernate", "Hibernate"),
+            ("MVC", "MVC"), ("PHP", "PHP"), ("Python", "Python (FastAPI)"),
+            ("Microservices", "Microservices Architecture"), ("Kafka", "Apache Kafka"),
         ]
         matched_backend = [label for key, label in backend_pool if key.lower() in text_corpus]
         if not matched_backend:
-            matched_backend = ["Java", "Spring Boot", "RESTful APIs", "Micro-services", "Python (Exposure)"]
+            matched_backend = ["Java", "Spring Boot", "Spring Security", "Spring Data JPA", "REST APIs", "Hibernate", "MVC", "PHP"]
         else:
-            # Always ensure base core is present
-            if "Java" not in " ".join(matched_backend):
-                matched_backend.insert(0, "Java")
-            if "Spring Boot" not in " ".join(matched_backend):
-                matched_backend.insert(1, "Spring Boot")
+            for base in ["Java", "Spring Boot", "Spring Security", "Spring Data JPA", "REST APIs", "Hibernate", "MVC", "PHP"]:
+                if base not in matched_backend:
+                    matched_backend.append(base)
         backend_skills_str = ", ".join(dict.fromkeys(matched_backend))
 
-        # ── 2. Match AI & LLM Skills ──────────────────────────────
+        # ── 2. Match Frontend & UI Skills ─────────────────────────
+        frontend_pool = [
+            ("React", "React.js"), ("Vue", "Vue.js"), ("JavaScript", "JavaScript (ES6+)"),
+            ("HTML", "HTML5"), ("CSS", "CSS3"), ("Tailwind", "Tailwind CSS"), ("TypeScript", "TypeScript"),
+        ]
+        matched_frontend = [label for key, label in frontend_pool if key.lower() in text_corpus]
+        if not matched_frontend:
+            matched_frontend = ["React.js", "Vue.js", "JavaScript (ES6+)", "HTML5", "CSS3", "Tailwind CSS"]
+        else:
+            for base in ["React.js", "Vue.js", "JavaScript (ES6+)", "HTML5", "CSS3", "Tailwind CSS"]:
+                if base not in matched_frontend:
+                    matched_frontend.append(base)
+        frontend_skills_str = ", ".join(dict.fromkeys(matched_frontend))
+
+        # ── 3. Match AI & Automation Skills ───────────────────────
         ai_pool = [
-            ("Generative AI", "Generative AI"), ("LLM", "Large Language Models (Claude, OpenAI)"),
-            ("Prompt Engineering", "Prompt Engineering"), ("Agent", "Agent-based AI"),
-            ("LangChain", "LangChain"), ("LangGraph", "LangGraph"), ("RAG", "RAG Architectures"),
-            ("OpenAI", "OpenAI API"), ("Claude", "Claude API"),
+            ("Claude", "Claude API"), ("LLM", "LLM Application Development"),
+            ("Agent", "AI Agent Development"), ("Prompt", "Prompt Engineering"),
+            ("Agentic", "Agentic AI"), ("LangChain", "LangChain"), ("LangGraph", "LangGraph"),
+            ("Generative AI", "Generative AI"), ("RAG", "RAG"),
         ]
         matched_ai = [label for key, label in ai_pool if key.lower() in text_corpus]
         if not matched_ai:
-            matched_ai = ["Generative AI", "Large Language Models (Claude, OpenAI)", "Prompt Engineering", "Agent-based AI"]
+            matched_ai = ["Claude API", "LLM Application Development", "AI Agent Development", "Prompt Engineering", "Agentic AI"]
+        else:
+            for base in ["Claude API", "LLM Application Development", "AI Agent Development", "Prompt Engineering", "Agentic AI"]:
+                if base not in matched_ai:
+                    matched_ai.append(base)
         ai_skills_str = ", ".join(dict.fromkeys(matched_ai))
 
-        # ── 3. Match Database, Cloud & DevOps Skills ──────────────
+        # ── 4. Cloud & Databases ──────────────────────────────────
+        cloud_skills_str = "Amazon EC2, Amazon VPC, IAM, Security Groups, Route Tables, NAT Gateway, Cloud Networking"
         db_pool = [
-            ("AWS", "AWS Cloud"), ("PostgreSQL", "PostgreSQL"), ("MySQL", "MySQL"),
-            ("Docker", "Docker"), ("Kubernetes", "Kubernetes"), ("Redis", "Redis"),
-            ("MongoDB", "MongoDB"), ("SQL", "SQL Optimization"), ("CI/CD", "CI/CD Pipelines"),
-            ("Git", "Git/GitHub"), ("Postman", "Postman"),
+            ("MySQL", "MySQL"), ("SQL", "SQL Optimization"), ("Git", "Git"),
+            ("GitHub", "GitHub"), ("Postman", "Postman"), ("JWT", "JWT Authentication"),
+            ("SDLC", "SDLC"), ("PostgreSQL", "PostgreSQL"), ("Docker", "Docker"),
         ]
         matched_db = [label for key, label in db_pool if key.lower() in text_corpus]
         if not matched_db:
-            matched_db = ["MySQL", "PostgreSQL concepts", "Git", "GitHub", "Postman", "AWS Cloud Fundamentals"]
+            matched_db = ["MySQL", "SQL Optimization", "Git", "GitHub", "Postman", "JWT Authentication", "SDLC"]
+        else:
+            for base in ["MySQL", "SQL Optimization", "Git", "GitHub", "Postman", "JWT Authentication", "SDLC"]:
+                if base not in matched_db:
+                    matched_db.append(base)
         db_skills_str = ", ".join(dict.fromkeys(matched_db))
 
-        # ── 4. Match Automation & Integrations ────────────────────
-        automation_pool = [
-            ("Workflow", "Workflow Orchestration"), ("Integration", "AI API Integration"),
-            ("Conversational", "Conversational AI"), ("Voice", "Speech-to-Text"),
-            ("JWT", "JWT / OAuth2 Security"), ("Automation", "Automation Pipelines"),
-        ]
-        matched_auto = [label for key, label in automation_pool if key.lower() in text_corpus]
-        if not matched_auto:
-            matched_auto = ["Workflow Orchestration", "AI API Integration", "Conversational AI", "Speech-to-Text"]
-        auto_skills_str = ", ".join(dict.fromkeys(matched_auto))
-
-        # ── 5. Tailored Summary ───────────────────────────────────
-        top_focus = matched_backend[:3] + matched_ai[:2]
-        focus_str = ", ".join(top_focus[:4])
+        # ── 5. Tailored Summary based on exp_years ────────────────
+        exp_str = "2 years" if exp_years >= 2.0 else "1.5 years"
         summary = (
-            f"Ambitious AI Application Developer and Software Engineer with 1.5 years of hands-on experience specializing in {focus_str}. "
-            f"Strong Java Full Stack and backend foundation transitioning into advanced Generative AI, agentic workflow automations, and LLM development. "
-            f"Demonstrated ability to architect high-throughput REST APIs, optimize database operations, and build intelligent AI-powered solutions tailored for {company}."
+            f"Results-driven Java Full Stack Developer with {exp_str} of experience building scalable enterprise applications using Java, Spring Boot, "
+            f"React.js, and MySQL. Currently expanding expertise in Generative AI, AI Agent development using Claude and LLM workflows, and AWS "
+            f"Cloud fundamentals. Passionate about developing intelligent automation solutions, RESTful microservices, and cloud-native applications "
+            f"while continuously learning modern AI and cloud technologies."
         )
 
-        # ── 6. Tailored Experience Bullets ────────────────────────
-        primary_backend = matched_backend[0] if matched_backend else "Java"
-        sec_backend = matched_backend[1] if len(matched_backend) > 1 else "Spring Boot"
-        db_lead = matched_db[0] if matched_db else "relational database"
-
+        # ── 6. Experience Dates & Bullets ─────────────────────────
+        exp_date = "Jan 2024 – June 2026" if exp_years >= 2.0 else "Jan 2025 – June 2026"
         exp_bullets = [
-            f"Built and maintained scalable backend systems utilizing {primary_backend} and {sec_backend}, establishing a robust micro-services architecture to support enterprise applications.",
-            f"Designed secure RESTful APIs to handle high-throughput data processing, facilitating smooth integration points for future AI and automation workflows.",
-            f"Optimized complex {db_lead} queries to reduce data synchronization latency by 20%, ensuring fast response times critical for real-time applications.",
-            f"Continuously upskilled in Generative AI, applying prompt engineering and LLM integrations to prototype automated reporting and intelligent system features.",
+            "Engineered the McLean Integrated Facility Management System using a Microservices architecture built with Java Spring Boot, React.js, and MySQL, deploying robust features for multi-site enterprise operations.",
+            "Architected scalable RESTful APIs leveraging Spring Data JPA and Hibernate for optimized database transactions, powering critical modules like asset tracking and PPM scheduling.",
+            "Integrated React.js front-end components with real-time operational dashboards, successfully reducing data synchronization latency by 20%.",
+            "Implemented secure Role-Based Access Control (RBAC) using Spring Security and JWT (JSON Web Tokens) for automated reporting modules.",
         ]
 
-        # ── 7. Tailored Projects ──────────────────────────────────
+        # ── 7. Project Portfolio ──────────────────────────────────
         projects = [
             {
-                "title": "Agentic AI Job Application Bot | github.com/kamalds2/AI-Job-Agent",
+                "title": "AI Job Application Agent | GenAI & Automation",
                 "bullets": [
-                    "Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).",
-                    "Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.",
+                    "Built an AI-powered automation system that searches multiple job portals, matches resumes against job descriptions, customizes resumes, and automates job applications using LLMs and workflow orchestration.",
                 ],
             },
             {
-                "title": "24/7 AI Voice Assistant | Conversational AI & API Integration",
+                "title": "24/7 AI Voice Assistant | Conversational AI",
                 "bullets": [
-                    "Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.",
+                    "Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning, voice synthesis, and WhatsApp notifications for seamless user interaction.",
                 ],
             },
             {
-                "title": f"McLean (Enterprise Facility System) | {primary_backend} {sec_backend} & REST APIs",
+                "title": "McLean (Facility & Asset Management System) | Full Stack Java",
                 "bullets": [
-                    f"Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards using {primary_backend} and secure JWT authentication.",
+                    "Developed a specialized asset management system backend utilizing Java Spring Boot paired with MySQL for robust tracking and continuous maintenance scheduling.",
+                    "Constructed highly scalable REST APIs with integrated real-time dashboard analytics and dynamic QR code generation functionality.",
                 ],
             },
         ]
 
         return {
             "summary": summary,
+            "exp_date": exp_date,
             "skills": {
                 "ai": ai_skills_str,
                 "backend": backend_skills_str,
-                "automation": auto_skills_str,
+                "frontend": frontend_skills_str,
+                "cloud": cloud_skills_str,
                 "databases": db_skills_str,
             },
             "experience_bullets": exp_bullets,
             "projects": projects,
         }
 
-    def generate_pdf(
+    def generate_pdf_1_5_years(
         self,
         job_id: int,
         job_title: str,
         company: str,
         tailored_data: dict,
+        portal: str = "",
     ) -> str:
         """
-        Generate an exact, 1-page professional ATS PDF resume matching the candidate's authentic template.
-        Dynamically incorporates skills and technologies required by the JD.
+        Template 1 (0-2 Yrs / 1.5 Yrs):
+        - Headline: DODDI KAMAL KUMAR
+        - Professional Summary: Java Full Stack Developer with 1.5 years of experience...
+        - Sections: Professional Summary, Technical Skills (5 categories), Professional Development & Upskilling, Professional Experience, Project Portfolio, Education & Certifications.
         """
         from reportlab.platypus import Table, TableStyle
 
-        safe_company = re.sub(r"[^\w]", "_", company)[:25]
-        safe_title = re.sub(r"[^\w]", "_", job_title)[:25]
-        filename = f"Resume_Kamal_Kumar_{safe_company}_{safe_title}_job{job_id}.pdf"
-        output_path = self.resumes_dir / filename
+        target_dir = self.resumes_dir / portal if portal else self.resumes_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        job_tag = str(job_id).split("_")[-1][-5:] if job_id else str(int(time.time()))[-5:]
+        output_filename = f"Resume_Kamal_Kumar_{job_tag}.pdf"
+        output_path = target_dir / output_filename
 
         doc = SimpleDocTemplate(
             str(output_path),
             pagesize=A4,
             rightMargin=1.0 * cm,
             leftMargin=1.0 * cm,
-            topMargin=0.8 * cm,
-            bottomMargin=0.8 * cm,
+            topMargin=0.7 * cm,
+            bottomMargin=0.7 * cm,
         )
 
         styles = getSampleStyleSheet()
 
         name_style = ParagraphStyle(
-            "NameStyle",
+            "NameStyle1",
             parent=styles["Normal"],
             fontName="Helvetica-Bold",
             fontSize=15,
@@ -348,70 +371,60 @@ class ResumeService:
             alignment=1,  # Centered
             spaceAfter=2,
         )
-        tagline_style = ParagraphStyle(
-            "TaglineStyle",
-            parent=styles["Normal"],
-            fontName="Helvetica-Bold",
-            fontSize=8.5,
-            leading=11,
-            textColor=colors.HexColor("#1e293b"),
-            alignment=1,
-            spaceAfter=2,
-        )
         contact_style = ParagraphStyle(
-            "ContactStyle",
+            "ContactStyle1",
             parent=styles["Normal"],
             fontName="Helvetica",
             fontSize=7.8,
             leading=10,
             textColor=colors.HexColor("#374151"),
             alignment=1,
-            spaceAfter=1,
+            spaceAfter=2,
         )
         section_header = ParagraphStyle(
-            "SectionHeader",
+            "SectionHeader1",
             parent=styles["Normal"],
             fontName="Helvetica-Bold",
-            fontSize=9.2,
-            leading=12,
+            fontSize=8.8,
+            leading=11.5,
             textColor=colors.HexColor("#0f172a"),
-            spaceBefore=4,
-            spaceAfter=2,
+            spaceBefore=3.5,
+            spaceAfter=1.5,
         )
         body_style = ParagraphStyle(
-            "BodyTextCustom",
+            "BodyTextCustom1",
             parent=styles["Normal"],
             fontName="Helvetica",
-            fontSize=7.8,
-            leading=10.5,
-            textColor=colors.HexColor("#1e293b"),
-            spaceAfter=2,
-        )
-        bullet_style = ParagraphStyle(
-            "BulletCustom",
-            parent=styles["Normal"],
-            fontName="Helvetica",
-            fontSize=7.6,
-            leading=10,
-            leftIndent=8,
+            fontSize=7.4,
+            leading=9.8,
             textColor=colors.HexColor("#1e293b"),
             spaceAfter=1.5,
         )
+        bullet_style = ParagraphStyle(
+            "BulletCustom1",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7.3,
+            leading=9.5,
+            leftIndent=8,
+            textColor=colors.HexColor("#1e293b"),
+            spaceAfter=1.0,
+        )
         item_title_left = ParagraphStyle(
-            "ItemTitleLeft",
+            "ItemTitleLeft1",
             parent=styles["Normal"],
             fontName="Helvetica-Bold",
-            fontSize=8.0,
-            leading=10.5,
+            fontSize=7.6,
+            leading=10.0,
             textColor=colors.HexColor("#0f172a"),
         )
         item_title_right = ParagraphStyle(
-            "ItemTitleRight",
+            "ItemTitleRight1",
             parent=styles["Normal"],
             fontName="Helvetica",
-            fontSize=7.8,
-            leading=10.5,
-            alignment=2,  # Right-aligned
+            fontSize=7.4,
+            leading=10.0,
+            alignment=2,
             textColor=colors.HexColor("#475569"),
         )
 
@@ -419,42 +432,49 @@ class ResumeService:
 
         # ── 1. Header ─────────────────────────────────────────────
         story.append(Paragraph("<b>DODDI KAMAL KUMAR</b>", name_style))
-        story.append(Paragraph("<b>AI Application Developer | Java Backend | Generative AI | LLMs | Agentic Workflows</b>", tagline_style))
         story.append(Paragraph("Hyderabad, Telangana &nbsp;|&nbsp; +91-9398872099 &nbsp;|&nbsp; kamalkumar.doddi@gmail.com", contact_style))
         story.append(Paragraph("LinkedIn: linkedin.com/in/kamal-doddi-6422b7279 &nbsp;|&nbsp; GitHub: github.com/kamalds2", contact_style))
-        story.append(Spacer(1, 2))
-        story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#0f172a"), spaceAfter=3))
+        story.append(Spacer(1, 1))
+        story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#0f172a"), spaceAfter=2.5))
 
         # ── 2. Professional Summary ───────────────────────────────
         story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", section_header))
         summary_text = tailored_data.get("summary") or (
-            "Ambitious AI Application Developer and Software Engineer transitioning a strong Java Full Stack foundation into advanced Generative AI and "
-            "LLM development. Hands-on experience building AI Agents, workflow automations, and intelligent conversational tools using Claude, OpenAI, "
-            "and prompt engineering. Combines 1.5 years of professional backend experience (Java, Spring Boot, REST APIs) with a deep passion for "
-            "building scalable, AI-assisted platforms and Agent-based AI architectures."
+            "Results-driven Java Full Stack Developer with 1.5 years of experience building scalable enterprise applications using Java, Spring Boot, "
+            "React.js, and MySQL. Currently expanding expertise in Generative AI, AI Agent development using Claude and LLM workflows, and AWS "
+            "Cloud fundamentals. Passionate about developing intelligent automation solutions, RESTful microservices, and cloud-native applications "
+            "while continuously learning modern AI and cloud technologies."
         )
         story.append(Paragraph(summary_text, body_style))
 
-        # ── 3. Technical Skills (Dynamic per JD) ───────────────────
+        # ── 3. Technical Skills ───────────────────────────────────
         skills_data = tailored_data.get("skills") if isinstance(tailored_data.get("skills"), dict) else {}
-        ai_skills = skills_data.get("ai") or "Generative AI, Large Language Models (Claude, OpenAI), Prompt Engineering, Agent-based AI"
-        backend_skills = skills_data.get("backend") or "Java, Spring Boot, RESTful APIs, Micro-services, Python (Exposure)"
-        automation_skills = skills_data.get("automation") or "Workflow Orchestration, AI API Integration, Conversational AI, Speech-to-Text"
-        db_skills = skills_data.get("databases") or "MySQL, PostgreSQL concepts, Git, GitHub, Postman, AWS Cloud Fundamentals"
+        backend_skills = skills_data.get("backend") or "Java, Spring Boot, Spring Security, Spring Data JPA, REST APIs, Hibernate, MVC, PHP"
+        frontend_skills = skills_data.get("frontend") or "React.js, Vue.js, JavaScript (ES6+), HTML5, CSS3, Tailwind CSS"
+        ai_skills = skills_data.get("ai") or "Claude API, LLM Application Development, AI Agent Development, Prompt Engineering, Agentic AI"
+        cloud_skills = skills_data.get("cloud") or "Amazon EC2, Amazon VPC, IAM, Security Groups, Route Tables, NAT Gateway, Cloud Networking"
+        db_skills = skills_data.get("databases") or "MySQL, SQL Optimization, Git, GitHub, Postman, JWT Authentication, SDLC"
 
         story.append(Paragraph("<b>TECHNICAL SKILLS</b>", section_header))
-        story.append(Paragraph(f"<b>AI & LLM Technologies:</b> {ai_skills}", body_style))
-        story.append(Paragraph(f"<b>Backend & APIs:</b> {backend_skills}", body_style))
-        story.append(Paragraph(f"<b>Automation & Integrations:</b> {automation_skills}", body_style))
+        story.append(Paragraph(f"<b>Backend & Frameworks:</b> {backend_skills}", body_style))
+        story.append(Paragraph(f"<b>Frontend & UI:</b> {frontend_skills}", body_style))
+        story.append(Paragraph(f"<b>AI & Automation:</b> {ai_skills}", body_style))
+        story.append(Paragraph(f"<b>Cloud (AWS Beginner):</b> {cloud_skills}", body_style))
         story.append(Paragraph(f"<b>Databases & Tools:</b> {db_skills}", body_style))
 
-        # ── 4. Professional Experience ────────────────────────────
+        # ── 4. Professional Development & Upskilling ──────────────
+        story.append(Paragraph("<b>PROFESSIONAL DEVELOPMENT & UPSKILLING</b>", section_header))
+        story.append(Paragraph("• <b>AWS Cloud Architecture:</b> Hands-on labs covering VPC, EC2, IAM, Security Groups, Route Tables, NAT Gateway, Load Balancers, Auto Scaling, and RDS.", bullet_style))
+        story.append(Paragraph("• <b>AI & LLM Workflows:</b> Building AI Agents using Claude APIs, developing automation projects integrating AI with backend services, exploring Agentic AI architectures, and prompt orchestration.", bullet_style))
+
+        # ── 5. Professional Experience ────────────────────────────
         story.append(Paragraph("<b>PROFESSIONAL EXPERIENCE</b>", section_header))
+        exp_date_str = tailored_data.get("exp_date", "Jan 2025 – June 2026")
         exp_table = Table(
             [
                 [
-                    Paragraph("<b>Software Engineer (Backend & AI Integration)</b> | Siri IT Innovations, Hyderabad", item_title_left),
-                    Paragraph("Jan 2025 – June 2026", item_title_right),
+                    Paragraph("<b>Junior Software Engineer</b> | Siri IT Innovations, Hyderabad", item_title_left),
+                    Paragraph(exp_date_str, item_title_right),
                 ]
             ],
             colWidths=[14.0 * cm, 4.8 * cm],
@@ -469,36 +489,35 @@ class ResumeService:
         story.append(exp_table)
 
         exp_bullets = tailored_data.get("experience_bullets") or [
-            "Built and maintained scalable backend systems utilizing Java and Spring Boot, establishing a robust micro-services architecture to support enterprise applications.",
-            "Designed secure RESTful APIs to handle high-throughput data processing, facilitating smooth integration points for future AI and automation workflows.",
-            "Optimized complex relational database queries to reduce data synchronization latency by 20%, ensuring fast response times critical for real-time applications.",
-            "Continuously upskilled in Generative AI, applying prompt engineering and LLM integrations to prototype automated reporting and intelligent system features.",
+            "Engineered the McLean Integrated Facility Management System using a Microservices architecture built with Java Spring Boot, React.js, and MySQL, deploying robust features for multi-site enterprise operations.",
+            "Architected scalable RESTful APIs leveraging Spring Data JPA and Hibernate for optimized database transactions, powering critical modules like asset tracking and PPM scheduling.",
+            "Integrated React.js front-end components with real-time operational dashboards, successfully reducing data synchronization latency by 20%.",
+            "Implemented secure Role-Based Access Control (RBAC) using Spring Security and JWT (JSON Web Tokens) for automated reporting modules.",
         ]
         for bullet in exp_bullets[:4]:
             b_text = bullet if bullet.startswith("•") else f"• {bullet}"
             story.append(Paragraph(b_text, bullet_style))
 
-        # ── 5. Project Portfolio ──────────────────────────────────
+        # ── 6. Project Portfolio ──────────────────────────────────
         story.append(Paragraph("<b>PROJECT PORTFOLIO</b>", section_header))
-
         projects_list = tailored_data.get("projects") or [
             {
-                "title": "Agentic AI Job Application Bot | github.com/kamalds2/AI-Job-Agent",
+                "title": "AI Job Application Agent | GenAI & Automation",
                 "bullets": [
-                    "Built an AI-powered automation system that matches resumes against job descriptions and customizes applications using Large Language Models (OpenAI/Claude).",
-                    "Utilized advanced prompt engineering and workflow orchestration to simulate Agent-based AI behaviors, significantly accelerating the application pipeline.",
+                    "Built an AI-powered automation system that searches multiple job portals, matches resumes against job descriptions, customizes resumes, and automates job applications using LLMs and workflow orchestration.",
                 ],
             },
             {
-                "title": "24/7 AI Voice Assistant | Conversational AI & API Integration",
+                "title": "24/7 AI Voice Assistant | Conversational AI",
                 "bullets": [
                     "Developed a conversational AI voice assistant integrating speech-to-text, LLM reasoning algorithms, and voice synthesis to provide real-time user interaction.",
                 ],
             },
             {
-                "title": "McLean (Enterprise Facility System) | Java Spring Boot & REST APIs",
+                "title": "McLean (Facility & Asset Management System) | Full Stack Java",
                 "bullets": [
-                    "Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards, utilizing secure JWT authentication.",
+                    "Developed a specialized asset management system backend utilizing Java Spring Boot paired with MySQL for robust tracking and continuous maintenance scheduling.",
+                    "Constructed highly scalable REST APIs with integrated real-time dashboard analytics and dynamic QR code generation functionality.",
                 ],
             },
         ]
@@ -510,7 +529,7 @@ class ResumeService:
                 b_text = b if b.startswith("•") else f"• {b}"
                 story.append(Paragraph(b_text, bullet_style))
 
-        # ── 6. Education & Certifications ─────────────────────────
+        # ── 7. Education & Certifications ─────────────────────────
         story.append(Paragraph("<b>EDUCATION & CERTIFICATIONS</b>", section_header))
         edu_table = Table(
             [
@@ -534,10 +553,266 @@ class ResumeService:
         ]))
         story.append(edu_table)
 
-        # Build PDF
         doc.build(story)
-        logger.info(f"📄 Generated ATS Authentic PDF: {output_path}")
+        logger.info(f"📄 Generated ATS Authentic 1.5Yrs PDF: {output_path}")
         return str(output_path)
+
+    def generate_pdf_2_plus_years(
+        self,
+        job_id: int,
+        job_title: str,
+        company: str,
+        tailored_data: dict,
+        portal: str = "",
+    ) -> str:
+        """
+        Template 2 (2+ Yrs requirement):
+        - Headline: DODDI KAMAL KUMAR
+        - Subtitle: Software Engineer | Java & Spring Boot | Microservices | AI Systems
+        - Professional Summary: Results-driven Software Engineer with equivalent experience designing, coding, testing...
+        - Sections: Professional Summary, Technical Skills (Backend, Databases & Cloud, Testing & Methodologies, AI & Innovation), Professional Experience, Project Portfolio, Education & Certifications.
+        """
+        from reportlab.platypus import Table, TableStyle
+
+        target_dir = self.resumes_dir / portal if portal else self.resumes_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        job_tag = str(job_id).split("_")[-1][-5:] if job_id else str(int(time.time()))[-5:]
+        output_filename = f"Resume_Kamal_Kumar_{job_tag}.pdf"
+        output_path = target_dir / output_filename
+
+        doc = SimpleDocTemplate(
+            str(output_path),
+            pagesize=A4,
+            rightMargin=1.0 * cm,
+            leftMargin=1.0 * cm,
+            topMargin=0.7 * cm,
+            bottomMargin=0.7 * cm,
+        )
+
+        styles = getSampleStyleSheet()
+
+        name_style = ParagraphStyle(
+            "NameStyle2",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=15,
+            leading=18,
+            textColor=colors.HexColor("#111827"),
+            alignment=1,  # Centered
+            spaceAfter=2,
+        )
+        tagline_style = ParagraphStyle(
+            "TaglineStyle2",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.HexColor("#1e293b"),
+            alignment=1,
+            spaceAfter=2,
+        )
+        contact_style = ParagraphStyle(
+            "ContactStyle2",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7.8,
+            leading=10,
+            textColor=colors.HexColor("#374151"),
+            alignment=1,
+            spaceAfter=2,
+        )
+        section_header = ParagraphStyle(
+            "SectionHeader2",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=8.8,
+            leading=11.5,
+            textColor=colors.HexColor("#0f172a"),
+            spaceBefore=3.5,
+            spaceAfter=1.5,
+        )
+        body_style = ParagraphStyle(
+            "BodyTextCustom2",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7.4,
+            leading=9.8,
+            textColor=colors.HexColor("#1e293b"),
+            spaceAfter=1.5,
+        )
+        bullet_style = ParagraphStyle(
+            "BulletCustom2",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7.3,
+            leading=9.5,
+            leftIndent=8,
+            textColor=colors.HexColor("#1e293b"),
+            spaceAfter=1.0,
+        )
+        item_title_left = ParagraphStyle(
+            "ItemTitleLeft2",
+            parent=styles["Normal"],
+            fontName="Helvetica-Bold",
+            fontSize=7.6,
+            leading=10.0,
+            textColor=colors.HexColor("#0f172a"),
+        )
+        item_title_right = ParagraphStyle(
+            "ItemTitleRight2",
+            parent=styles["Normal"],
+            fontName="Helvetica",
+            fontSize=7.4,
+            leading=10.0,
+            alignment=2,
+            textColor=colors.HexColor("#475569"),
+        )
+
+        story = []
+
+        # ── 1. Header ─────────────────────────────────────────────
+        story.append(Paragraph("<b>DODDI KAMAL KUMAR</b>", name_style))
+        story.append(Paragraph("<b>Software Engineer | Java & Spring Boot | Microservices | AI Systems</b>", tagline_style))
+        story.append(Paragraph("Hyderabad, Telangana &nbsp;|&nbsp; +91-9398872099 &nbsp;|&nbsp; kamalkumar.doddi@gmail.com", contact_style))
+        story.append(Paragraph("LinkedIn: linkedin.com/in/kamal-doddi-6422b7279 &nbsp;|&nbsp; GitHub: github.com/kamalds2", contact_style))
+        story.append(Spacer(1, 1))
+        story.append(HRFlowable(width="100%", thickness=0.8, color=colors.HexColor("#0f172a"), spaceAfter=2.5))
+
+        # ── 2. Professional Summary ───────────────────────────────
+        story.append(Paragraph("<b>PROFESSIONAL SUMMARY</b>", section_header))
+        summary_text = (
+            "Results-driven Software Engineer with equivalent experience designing, coding, testing, and deploying scalable applications. Proficient in Java, "
+            "Spring Boot, and cloud-native microservices architecture. Experienced in developing AI prototypes and production systems, alongside utilizing "
+            "robust databases including Oracle SQL and MongoDB (NoSQL). Adept at working within Agile methodologies, implementing automated "
+            "functional testing using BDD, and ensuring strict adherence to security and compliance requirements across technology initiatives."
+        )
+        story.append(Paragraph(summary_text, body_style))
+
+        # ── 3. Technical Skills ───────────────────────────────────
+        skills_data = tailored_data.get("skills") if isinstance(tailored_data.get("skills"), dict) else {}
+        backend_skills = skills_data.get("backend") or "Java, Spring Boot, Hibernate, Cloud-Native Microservices, RESTful APIs"
+        db_cloud = "Oracle SQL, MongoDB (NoSQL), AWS, OCP (OpenShift Container Platform) Exposure"
+        testing_skills = "Agile Development, BDD (Automated Functional Testing), Debugging, System Design"
+        ai_skills = "AI Prototypes, Production AI Systems, Generative AI, LLMs, Workflow Automation"
+
+        story.append(Paragraph("<b>TECHNICAL SKILLS</b>", section_header))
+        story.append(Paragraph(f"<b>Backend & Frameworks:</b> {backend_skills}", body_style))
+        story.append(Paragraph(f"<b>Databases & Cloud:</b> {db_cloud}", body_style))
+        story.append(Paragraph(f"<b>Testing & Methodologies:</b> {testing_skills}", body_style))
+        story.append(Paragraph(f"<b>AI & Innovation:</b> {ai_skills}", body_style))
+
+        # ── 4. Professional Experience ────────────────────────────
+        story.append(Paragraph("<b>PROFESSIONAL EXPERIENCE</b>", section_header))
+        exp_table = Table(
+            [
+                [
+                    Paragraph("<b>Software Engineer</b> | Siri IT Innovations, Hyderabad", item_title_left),
+                    Paragraph("Jan 2025 – June 2026", item_title_right),
+                ]
+            ],
+            colWidths=[14.0 * cm, 4.8 * cm],
+        )
+        exp_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(exp_table)
+
+        exp_bullets = [
+            "Designed, coded, tested, and debugged low to moderately complex cloud-native microservice applications utilizing Java and Spring Boot.",
+            "Participated in installation, upgrades, and deployment efforts, collaborating seamlessly with technology colleagues to meet established SLAs in an Agile environment.",
+            "Developed automated functional tests utilizing BDD methodologies to ensure high-quality deliverables and identify opportunities for service quality improvements.",
+            "Integrated Oracle SQL and NoSQL (MongoDB) databases using Hibernate to optimize enterprise data retrieval, resolving complex technical assignments requiring research.",
+            "Exercised independent judgment to adhere to security and compliance requirements while deploying backend services and escalating issues as needed.",
+        ]
+        for bullet in exp_bullets:
+            b_text = bullet if bullet.startswith("•") else f"• {bullet}"
+            story.append(Paragraph(b_text, bullet_style))
+
+        # ── 5. Project Portfolio ──────────────────────────────────
+        story.append(Paragraph("<b>PROJECT PORTFOLIO</b>", section_header))
+        projects_list = [
+            {
+                "title": "Agentic AI Job Application Bot (AI Prototype) | LLMs, Automation, Spring Boot",
+                "bullets": [
+                    "Built a production-ready AI prototype that utilizes Large Language Models to automate data extraction and simulate agentic workflows.",
+                    "Presented recommendations for resolving AI integration bottlenecks, ensuring high availability and compliance with established technical patterns.",
+                ],
+            },
+            {
+                "title": "McLean (Enterprise Facility System) | Java, Hibernate, Oracle SQL",
+                "bullets": [
+                    "Constructed highly scalable REST APIs serving as the backend backbone for operational dashboards, utilizing secure JWT authentication and Hibernate for data mapping.",
+                    "Documented technical assignments and executed testing phases to validate system reliability across distributed networks.",
+                ],
+            },
+        ]
+
+        for proj in projects_list:
+            p_title = proj.get("title", "")
+            story.append(Paragraph(f"<b>{p_title}</b>", item_title_left))
+            for b in proj.get("bullets", []):
+                b_text = b if b.startswith("•") else f"• {b}"
+                story.append(Paragraph(b_text, bullet_style))
+
+        # ── 6. Education & Certifications ─────────────────────────
+        story.append(Paragraph("<b>EDUCATION & CERTIFICATIONS</b>", section_header))
+        edu_table = Table(
+            [
+                [
+                    Paragraph("<b>Certified Full Stack Developer</b> | KodNest Technologies", item_title_left),
+                    Paragraph("End-to-End Training", item_title_right),
+                ],
+                [
+                    Paragraph("<b>B.Tech in Computer Science & Engineering</b> | Siddhartha Institute of Technology and Sciences", item_title_left),
+                    Paragraph("2019 – 2023", item_title_right),
+                ],
+            ],
+            colWidths=[14.0 * cm, 4.8 * cm],
+        )
+        edu_table.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+            ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(edu_table)
+
+        doc.build(story)
+        logger.info(f"📄 Generated ATS Authentic 2+Yrs PDF: {output_path}")
+        return str(output_path)
+
+    def generate_tailored_resume(
+        self,
+        job: dict,
+        candidate_profile: dict = None,
+        exp_years: float = 1.5,
+        portal: str = "",
+    ) -> str:
+        """
+        Generate and save tailored ATS 1-page PDF resume.
+        Chooses Template 1 (1.5Yrs) or Template 2 (2+Yrs) based on exp_years.
+        Saves to resumes/<portal>/ (e.g. resumes/cutshort/, resumes/hirist/, etc.).
+        """
+        job_id = job.get("id", int(time.time()))
+        job_title = job.get("title", "Software Engineer")
+        company = job.get("company", "Company")
+        job_desc = job.get("description", "")
+        resolved_portal = portal or job.get("portal") or ""
+        if not resolved_portal and isinstance(job_id, str) and "_" in job_id:
+            resolved_portal = job_id.split("_")[0].lower()
+
+        tailored_data = self._generate_fallback_tailored_data(job_title, company, job_desc, exp_years=exp_years)
+
+        if exp_years >= 2.0:
+            return self.generate_pdf_2_plus_years(job_id, job_title, company, tailored_data, portal=resolved_portal)
+        else:
+            return self.generate_pdf_1_5_years(job_id, job_title, company, tailored_data, portal=resolved_portal)
 
     def create_tailored_resume(
         self,
@@ -545,21 +820,31 @@ class ResumeService:
         job_title: str,
         company: str,
         job_description: str,
+        exp_years: float = 1.5,
+        portal: str = "",
     ) -> str:
         """
         Full pipeline: generate tailored resume data → create authentic 1-page PDF.
-        Guarantees 100% clean formatting identical to the master resume template.
         """
+        resolved_portal = portal or ""
+        if not resolved_portal and isinstance(job_id, str) and "_" in job_id:
+            resolved_portal = job_id.split("_")[0].lower()
+
         try:
             tailored_data = self.tailor_resume(job_id, job_title, company, job_description)
             if not tailored_data:
-                tailored_data = self._generate_fallback_tailored_data(job_title, company, job_description)
+                tailored_data = self._generate_fallback_tailored_data(job_title, company, job_description, exp_years=exp_years)
 
-            pdf_path = self.generate_pdf(job_id, job_title, company, tailored_data)
-            return pdf_path
+            if exp_years >= 2.0:
+                return self.generate_pdf_2_plus_years(job_id, job_title, company, tailored_data, portal=resolved_portal)
+            else:
+                return self.generate_pdf_1_5_years(job_id, job_title, company, tailored_data, portal=resolved_portal)
 
         except Exception as e:
             logger.warning(f"Tailoring failed for job {job_id} ({e}) — generating dynamic authentic PDF")
-            fallback_data = self._generate_fallback_tailored_data(job_title, company, job_description)
-            return self.generate_pdf(job_id, job_title, company, fallback_data)
+            fallback_data = self._generate_fallback_tailored_data(job_title, company, job_description, exp_years=exp_years)
+            if exp_years >= 2.0:
+                return self.generate_pdf_2_plus_years(job_id, job_title, company, fallback_data, portal=resolved_portal)
+            else:
+                return self.generate_pdf_1_5_years(job_id, job_title, company, fallback_data, portal=resolved_portal)
 
