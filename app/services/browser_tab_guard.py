@@ -1,27 +1,29 @@
 """
-Browser Tab Guard & Blank Page Auto-Recovery Utility.
+Browser Tab Guard & Single Chrome Connection Utility.
 
-Monitors Playwright browser contexts for stuck 'about:blank' tabs,
-unwanted profile/candidate settings pages, and unrelated external popups.
-
-Key Features:
-1. Auto-detects and closes stuck 'about:blank' tabs.
-2. Closes external / third-party popup tabs to prevent multiple browser windows.
-3. Detects if the primary page was steered into candidate profile/account pages
-   (e.g., /candidate, /profile) and recovers it back to the jobs search URL.
-4. Brings the primary page to front and refreshes it so application flow continues uninterrupted.
+Enforces Two Core Rules Across All Browser Agents:
+Rule 1: If any 'about:' or unrelated URL tab opens or redirects, close it immediately,
+        return focus to the previous working tab, and pick up application flow seamlessly.
+Rule 2: Never open extra Google Chrome instances (strictly connect to / reuse single Chrome on port 9222).
 """
 import asyncio
 import logging
+import os
+import subprocess
 from typing import Optional, Tuple
 
+import httpx
 from playwright.async_api import BrowserContext, Page
 
 logger = logging.getLogger("BrowserTabGuard")
 
+DEFAULT_CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+DEFAULT_USER_DATA_DIR = os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data\AgentProfile")
+CDP_PORT = 9222
 
-def is_blank_url(url: Optional[str]) -> bool:
-    """Checks if a URL represents an empty or uninitialized page."""
+
+def is_about_or_blank_url(url: Optional[str]) -> bool:
+    """Checks if a URL represents an empty, about:*, error, or non-content page."""
     if not url:
         return True
     u = url.strip().lower()
@@ -30,7 +32,15 @@ def is_blank_url(url: Optional[str]) -> bool:
         or u.startswith("about:")
         or u.startswith("chrome-error://")
         or u.startswith("data:text/html,chromewebdata")
+        or "about.linkedin.com" in u
+        or u.startswith("chrome://")
+        or u.startswith("edge://")
     )
+
+
+def is_blank_url(url: Optional[str]) -> bool:
+    """Backward compatibility alias for is_about_or_blank_url."""
+    return is_about_or_blank_url(url)
 
 
 def is_unrelated_or_profile_url(
@@ -38,29 +48,34 @@ def is_unrelated_or_profile_url(
     allowed_domains: Optional[list[str]] = None,
 ) -> Tuple[bool, str]:
     """
-    Checks if a URL is blank, an off-target profile/candidate settings page,
-    or an external domain outside the active portal.
+    Rule 1 Checker:
+    Checks if a URL is an about URL, blank page, off-target profile/candidate settings page,
+    help/legal page, or an external domain outside the active portal.
     Returns (is_unwanted, reason_str).
     """
-    if is_blank_url(url):
-        return True, "about_blank"
+    if is_about_or_blank_url(url):
+        return True, "about_url"
 
     u = (url or "").strip().lower()
 
-    # Detect unwanted profile / account settings pages that derail automation
+    # Detect unwanted profile / account settings / help / about pages that derail automation
     profile_keywords = [
         "/candidate", "/profile", "/users/edit", "/user/edit",
         "/my-profile", "/my_profile", "/settings", "/account",
         "workatastartup.com/candidate", "workatastartup.com/profile",
         "hirist.tech/candidate",
+        "about.linkedin.com",
+        "linkedin.com/help",
+        "linkedin.com/legal",
+        "linkedin.com/safety",
     ]
     for pk in profile_keywords:
         if pk in u:
             # Legitimate search pages have /jobs or /companies or /jobfeed or /all-jobs
             if not any(k in u for k in ["/jobs", "/companies?", "/jobfeed", "/all-jobs"]):
-                return True, f"profile_page ({pk})"
+                return True, f"unwanted_page ({pk})"
 
-    # If allowed portal domains are specified (e.g. ['workatastartup.com', 'ycombinator.com'])
+    # If allowed portal domains are specified (e.g. ['linkedin.com', 'workatastartup.com'])
     if allowed_domains:
         has_allowed = any(dom.lower() in u for dom in allowed_domains)
         if not has_allowed and not u.startswith("chrome://"):
@@ -72,7 +87,7 @@ def is_unrelated_or_profile_url(
 async def check_page_has_content(page: Page) -> bool:
     """Checks if the page DOM has loaded meaningful content."""
     try:
-        if page.is_closed() or is_blank_url(page.url):
+        if page.is_closed() or is_about_or_blank_url(page.url):
             return False
         length = await page.evaluate(
             "() => (document.body ? (document.body.innerText || '').trim().length : 0)"
@@ -88,14 +103,15 @@ async def clean_and_recover_blank_tabs(
     last_valid_url: Optional[str] = None,
     fallback_url: Optional[str] = None,
     allowed_domains: Optional[list[str]] = None,
-    auto_refresh: bool = True,
+    auto_refresh: bool = False,
 ) -> Tuple[Page, bool]:
     """
+    Rule 1 Implementation:
     Scans all open tabs in the browser context:
-    - Closes any 'about:blank' or secondary unrelated/profile tabs.
-    - Brings the primary working tab to front.
-    - If the primary tab landed on an unwanted profile or external page, navigates back to fallback_url.
-    - Refreshes the page to ensure the application flow continues uninterrupted.
+    - Closes any 'about:*' or secondary unrelated/profile tabs.
+    - Brings the primary working tab to the front.
+    - If the primary tab landed on an unwanted about/profile/external page, navigates back to fallback_url.
+    - By default does NOT reload primary tab if it is already valid, so in-progress modals / job selection pick up immediately.
     - Returns (active_page, recovered_flag).
     """
     if not context:
@@ -134,7 +150,7 @@ async def clean_and_recover_blank_tabs(
     # Close all secondary unwanted tabs (popups, about:blank, external redirects)
     if unwanted_secondary:
         logger.warning(
-            f"⚠️ [Tab Guard] Closing {len(unwanted_secondary)} secondary unwanted/popup tab(s)..."
+            f"⚠️ [Tab Guard] Detected and closing {len(unwanted_secondary)} secondary about/unwanted tab(s)..."
         )
         for sp, reason in unwanted_secondary:
             try:
@@ -153,7 +169,7 @@ async def clean_and_recover_blank_tabs(
         except Exception:
             return primary_page, False
 
-    # Check if target page is itself on an unwanted page
+    # Check if target page is itself on an unwanted about or profile page
     target_unwanted, t_reason = is_unrelated_or_profile_url(target_page.url, allowed_domains=allowed_domains)
     recovery_url = fallback_url or last_valid_url
 
@@ -174,6 +190,8 @@ async def clean_and_recover_blank_tabs(
             logger.info(f"  🔄 Refreshing primary page to ensure clean state: {target_page.url}...")
             await target_page.reload(wait_until="domcontentloaded", timeout=25000)
             await asyncio.sleep(1.5)
+        elif unwanted_secondary:
+            logger.info("  🎯 Returned focus to previous tab — picking up application flow!")
     except Exception:
         pass
 
@@ -187,9 +205,11 @@ def attach_context_blank_tab_monitor(
     allowed_domains: Optional[list[str]] = None,
 ):
     """
+    Rule 1 Event Monitor:
     Attaches an event handler to the browser context to automatically
-    detect and close any newly opened popup or tab that remains 'about:blank',
-    lands on an unwanted profile/settings page, or strays to an external domain.
+    detect and close any newly opened popup or tab that remains 'about:*',
+    lands on an unwanted profile/settings/about page, or strays to an external domain.
+    Refocuses the primary working tab immediately so the agent picks up application flow.
     """
     async def on_new_page(new_page: Page):
         try:
@@ -198,12 +218,11 @@ def attach_context_blank_tab_monitor(
             if primary and new_page == primary:
                 return
 
-            # Monitor the newly opened tab for up to 3.5 seconds
-            for _ in range(7):
+            # Monitor the newly opened tab for up to 3 seconds
+            for _ in range(6):
                 await asyncio.sleep(0.5)
                 if new_page.is_closed():
                     return
-                # Check url
                 url = new_page.url
                 is_unwanted, reason = is_unrelated_or_profile_url(url, allowed_domains=allowed_domains)
                 if is_unwanted:
@@ -213,11 +232,11 @@ def attach_context_blank_tab_monitor(
                 url = new_page.url
                 is_unwanted, reason = is_unrelated_or_profile_url(url, allowed_domains=allowed_domains)
                 if is_unwanted:
-                    logger.warning(f"⚠️ [Tab Guard Event] Newly opened tab is {reason} ('{url}'). Closing tab to prevent multiple windows...")
+                    logger.warning(f"⚠️ [Tab Guard Event] Newly opened tab is {reason} ('{url}'). Auto-closing tab...")
                     await new_page.close()
-                    logger.info("  🗑️ Auto-closed unwanted popup tab.")
+                    logger.info("  🗑️ Auto-closed about/unrelated popup tab.")
 
-                    # Refocus primary page
+                    # Refocus primary page so agent immediately picks up
                     if primary and not primary.is_closed():
                         try:
                             await primary.bring_to_front()
@@ -227,9 +246,7 @@ def attach_context_blank_tab_monitor(
                                 logger.info(f"  🔄 Primary page was off-target. Navigating back to: {default_portal_url}")
                                 await primary.goto(default_portal_url, wait_until="domcontentloaded", timeout=30000)
                             else:
-                                await primary.reload(wait_until="domcontentloaded", timeout=20000)
-                            await asyncio.sleep(1.5)
-                            logger.info("  ✅ Resumed application flow on primary page!")
+                                logger.info("  ✅ Returned focus to primary tab — picking up workflow seamlessly!")
                         except Exception as e:
                             logger.debug(f"Note recovering primary page in monitor: {e}")
         except Exception as err:
@@ -240,6 +257,103 @@ def attach_context_blank_tab_monitor(
 
     try:
         context.on("page", sync_listener)
-        logger.info("🛡️ Tab Guard attached to browser context (Auto-closes blank/unrelated tabs and keeps single active window).")
+        logger.info("🛡️ Tab Guard attached to browser context (Auto-closes about/unrelated tabs & preserves single Chrome window).")
     except Exception as e:
         logger.warning(f"Could not attach tab guard listener: {e}")
+
+
+def is_cdp_port_open(port: int = CDP_PORT) -> bool:
+    """Check if Chrome remote debugging port is open and listening."""
+    try:
+        resp = httpx.get(f"http://127.0.0.1:{port}/json/version", timeout=1.5)
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+async def connect_or_launch_single_chrome(
+    playwright,
+    cdp_port: int = CDP_PORT,
+    user_data_dir: Optional[str] = None,
+    chrome_path: Optional[str] = None,
+) -> Tuple[BrowserContext, Page, bool]:
+    """
+    Rule 2 Implementation:
+    Strictly connects to or launches a SINGLE Google Chrome instance.
+    Prevents spawning duplicate Chrome instances or multiple profiles (e.g. AgentProfile2).
+    Returns (context, page, is_cdp).
+    """
+    c_path = chrome_path or DEFAULT_CHROME_PATH
+    u_dir = user_data_dir or DEFAULT_USER_DATA_DIR
+
+    # 1. Check if Chrome debugging port 9222 is already open
+    if not is_cdp_port_open(cdp_port):
+        # Spawn native Chrome with remote debugging port once
+        cmd = [
+            c_path,
+            f"--remote-debugging-port={cdp_port}",
+            f"--user-data-dir={u_dir}",
+            "--start-maximized",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-blink-features=AutomationControlled",
+        ]
+        logger.info(f"🚀 Spawning single Google Chrome instance on port {cdp_port}...")
+        try:
+            subprocess.Popen(cmd)
+        except Exception as e:
+            logger.warning(f"Note launching native Chrome: {e}")
+
+        # Wait up to 15 seconds for CDP port to open
+        for _ in range(30):
+            await asyncio.sleep(0.5)
+            if is_cdp_port_open(cdp_port):
+                break
+
+    # 2. Connect over CDP to the single Chrome process
+    if is_cdp_port_open(cdp_port):
+        logger.info(f"🔌 Connecting to single Google Chrome over CDP (http://127.0.0.1:{cdp_port})...")
+        browser = await playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{cdp_port}", timeout=15000)
+        contexts = browser.contexts
+        context = contexts[0] if contexts else await browser.new_context()
+        pages = context.pages
+        page = pages[0] if pages else await context.new_page()
+
+        # Close any lingering about:blank or secondary tabs from previous runs
+        if len(pages) > 1:
+            for extra_p in pages[1:]:
+                try:
+                    if is_about_or_blank_url(extra_p.url):
+                        await extra_p.close()
+                except Exception:
+                    pass
+
+        logger.info("✅ Connected to single Chrome instance over CDP (Rule 2 enforced)!")
+        return context, page, True
+
+    # 3. Fallback: single persistent context with primary user_data_dir only (NEVER AgentProfile2)
+    logger.info("🚀 Launching single persistent Google Chrome context...")
+    context = await playwright.chromium.launch_persistent_context(
+        user_data_dir=u_dir,
+        executable_path=c_path,
+        headless=False,
+        args=[
+            "--start-maximized",
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+        ],
+        viewport=None,
+    )
+    pages = context.pages
+    page = pages[0] if pages else await context.new_page()
+
+    if len(pages) > 1:
+        for extra_p in pages[1:]:
+            try:
+                if is_about_or_blank_url(extra_p.url):
+                    await extra_p.close()
+            except Exception:
+                pass
+
+    return context, page, False

@@ -34,6 +34,7 @@ import httpx
 from app.services.browser_tab_guard import (
     attach_context_blank_tab_monitor,
     clean_and_recover_blank_tabs,
+    connect_or_launch_single_chrome,
     is_blank_url,
 )
 from app.services.email_service import EmailService
@@ -240,57 +241,12 @@ class YCombinatorBrowserAgent:
         from playwright.async_api import async_playwright
         self._playwright = await async_playwright().start()
 
-        if not self.is_cdp_port_open():
-            self._launch_native_chrome()
-            for _ in range(12):
-                await asyncio.sleep(1.0)
-                if self.is_cdp_port_open():
-                    break
-
-        connected_via_cdp = False
-        try:
-            if self.is_cdp_port_open():
-                logger.info(f"🔌 Connecting to real Google Chrome on port {self.cdp_port}...")
-                self._browser = await self._playwright.chromium.connect_over_cdp(
-                    f"http://127.0.0.1:{self.cdp_port}",
-                    timeout=15000,
-                )
-                contexts = self._browser.contexts
-                self._context = contexts[0] if contexts else await self._browser.new_context()
-                pages = self._context.pages
-                self._page = pages[0] if pages else await self._context.new_page()
-                self._is_cdp = True
-                connected_via_cdp = True
-                logger.info("✅ Connected to live Chrome instance!")
-        except Exception as e:
-            logger.warning(f"CDP connection attempt note: {e}. Falling back to persistent launch...")
-
-        if not connected_via_cdp:
-            logger.info("🚀 Launching persistent Google Chrome for Y Combinator Agent...")
-            try:
-                self._context = await self._playwright.chromium.launch_persistent_context(
-                    user_data_dir=self.user_data_dir,
-                    executable_path=self.chrome_path,
-                    headless=False,
-                    args=[
-                        "--start-maximized",
-                        "--disable-blink-features=AutomationControlled",
-                        "--no-first-run",
-                        "--no-default-browser-check",
-                    ],
-                    viewport=None,
-                )
-            except Exception:
-                self._context = await self._playwright.chromium.launch_persistent_context(
-                    user_data_dir=os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data\AgentProfile2"),
-                    executable_path=self.chrome_path,
-                    headless=False,
-                    args=["--start-maximized"],
-                    viewport=None,
-                )
-
-            pages = self._context.pages
-            self._page = pages[0] if pages else await self._context.new_page()
+        self._context, self._page, self._is_cdp = await connect_or_launch_single_chrome(
+            self._playwright,
+            cdp_port=self.cdp_port,
+            user_data_dir=self.user_data_dir,
+            chrome_path=self.chrome_path,
+        )
 
         # Stealth overrides
         await self._page.add_init_script("""

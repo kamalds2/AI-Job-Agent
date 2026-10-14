@@ -35,6 +35,8 @@ from app.prompts.form_filler_prompt import FORM_FILLER_SYSTEM_PROMPT, build_form
 from app.services.browser_tab_guard import (
     attach_context_blank_tab_monitor,
     clean_and_recover_blank_tabs,
+    connect_or_launch_single_chrome,
+    is_about_or_blank_url,
     is_blank_url,
 )
 from app.services.email_service import EmailService
@@ -247,7 +249,7 @@ class LinkedInBrowserAgent:
             logger.warning(f"Note when spawning native Chrome: {e}")
 
     async def connect(self, context=None, page=None):
-        """Connect to live Google Chrome via CDP (Port 9222) in the same window as Cutshort and Hirist."""
+        """Connect to live Google Chrome via CDP (Port 9222) in the same window (Rule 2: single Chrome enforced)."""
         if context and page:
             self._context = context
             self._page = page
@@ -257,61 +259,27 @@ class LinkedInBrowserAgent:
         from playwright.async_api import async_playwright
         self._playwright = await async_playwright().start()
 
-        if not self.is_cdp_port_open():
-            self._launch_native_chrome()
-            for _ in range(12):
-                await asyncio.sleep(1.0)
-                if self.is_cdp_port_open():
-                    break
+        self._context, self._page, self._is_cdp = await connect_or_launch_single_chrome(
+            self._playwright,
+            cdp_port=self.cdp_port,
+            user_data_dir=self.user_data_dir,
+            chrome_path=self.chrome_path,
+        )
 
-        connected_via_cdp = False
-        try:
-            if self.is_cdp_port_open():
-                logger.info(f"🔌 Connecting to real Google Chrome on port {self.cdp_port} (same window as Cutshort/Hirist)...")
-                self._browser = await self._playwright.chromium.connect_over_cdp(
-                    f"http://127.0.0.1:{self.cdp_port}",
-                    timeout=15000,
-                )
-                contexts = self._browser.contexts
-                self._context = contexts[0] if contexts else await self._browser.new_context()
-                pages = self._context.pages
-                self._page = pages[0] if pages else await self._context.new_page()
-                self._is_cdp = True
-                connected_via_cdp = True
-                logger.info("✅ Connected to live Chrome instance!")
-        except Exception as e:
-            logger.warning(f"CDP connection attempt note: {e}. Falling back to persistent launch...")
-
-        if not connected_via_cdp:
-            logger.info("🚀 Launching persistent Google Chrome for LinkedIn Agent...")
-            try:
-                self._context = await self._playwright.chromium.launch_persistent_context(
-                    user_data_dir=self.user_data_dir,
-                    executable_path=self.chrome_path,
-                    headless=False,
-                    args=[
-                        "--start-maximized",
-                        "--disable-blink-features=AutomationControlled",
-                        "--no-first-run",
-                        "--no-default-browser-check",
-                    ],
-                    viewport=None,
-                )
-            except Exception as e:
-                logger.error(f"Error launching persistent context: {e}")
-                self._context = await self._playwright.chromium.launch_persistent_context(
-                    user_data_dir=os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data\AgentProfile2"),
-                    executable_path=self.chrome_path,
-                    headless=False,
-                    args=["--start-maximized"],
-                    viewport=None,
-                )
-            pages = self._context.pages
-            self._page = pages[0] if pages else await self._context.new_page()
-
-        # Clean any stuck about:blank tabs and attach context monitor
-        self._page, _ = await clean_and_recover_blank_tabs(self._context, self._page, fallback_url="https://www.linkedin.com/feed/")
-        attach_context_blank_tab_monitor(self._context, lambda: self._page, default_portal_url="https://www.linkedin.com/feed/")
+        # Rule 1: Clean any stuck about:blank / about:* tabs and attach context monitor
+        self._page, _ = await clean_and_recover_blank_tabs(
+            self._context,
+            self._page,
+            fallback_url="https://www.linkedin.com/jobs/",
+            allowed_domains=["linkedin.com"],
+            auto_refresh=False,
+        )
+        attach_context_blank_tab_monitor(
+            self._context,
+            lambda: self._page,
+            default_portal_url="https://www.linkedin.com/jobs/",
+            allowed_domains=["linkedin.com"],
+        )
 
         # Check if LinkedIn session is active
         logger.info("🔍 Checking LinkedIn login status...")
@@ -357,19 +325,6 @@ class LinkedInBrowserAgent:
                 await asyncio.sleep(3.0)
             except Exception:
                 await asyncio.sleep(2.0)
-
-    async def close(self):
-        """Disconnect session safely."""
-        try:
-            if self._context:
-                await self._context.close()
-            if self._browser:
-                await self._browser.close()
-            if self._playwright:
-                await self._playwright.stop()
-            logger.info("🔌 Closed browser connection.")
-        except Exception as e:
-            logger.warning(f"Note during browser close: {e}")
 
     def notify_direct_apply_job(
         self,
@@ -581,8 +536,15 @@ class LinkedInBrowserAgent:
         total_to_inspect = min(card_count if card_count > 0 else max_inspect_per_page, max_inspect_per_page)
 
         for idx in range(total_to_inspect):
-            # Guard against any stuck about:blank tabs
-            self._page, _ = await clean_and_recover_blank_tabs(self._context, self._page, fallback_url="https://www.linkedin.com/jobs/")
+            # Rule 1: Guard against any stuck about:blank or about:* tabs
+            search_url = getattr(self, "_current_search_url", "https://www.linkedin.com/jobs/")
+            self._page, _ = await clean_and_recover_blank_tabs(
+                self._context,
+                self._page,
+                fallback_url=search_url,
+                allowed_domains=["linkedin.com"],
+                auto_refresh=False,
+            )
 
             if self.daily_limit_hit:
                 logger.warning("⛔ [LinkedIn Daily Limit Reached] Skipping remaining cards on page.")
@@ -608,9 +570,17 @@ class LinkedInBrowserAgent:
                         const cards = document.querySelectorAll("li[data-occludable-job-id], div.job-card-container, div[data-job-id], li.jobs-search-results__list-item");
                         if (i < cards.length) {{
                             cards[i].scrollIntoView({{ behavior: 'instant', block: 'center' }});
+                            // Rule 1: Remove target="_blank" from all links inside card to stay in same tab
+                            cards[i].querySelectorAll("a").forEach(a => {{
+                                if (a.getAttribute("target") === "_blank") a.removeAttribute("target");
+                            }});
                             const link = cards[i].querySelector("a.job-card-list__title, a.job-card-container__link, a");
-                            if (link) link.click();
-                            else cards[i].click();
+                            if (link) {{
+                                link.removeAttribute("target");
+                                link.click();
+                            }} else {{
+                                cards[i].click();
+                            }}
                             return true;
                         }}
                         return false;
@@ -622,6 +592,15 @@ class LinkedInBrowserAgent:
                     break
 
                 await asyncio.sleep(2.5)
+
+                # Rule 1: If clicking card opened an about tab or secondary window, close it immediately and pick up
+                self._page, _ = await clean_and_recover_blank_tabs(
+                    self._context,
+                    self._page,
+                    fallback_url=search_url,
+                    allowed_domains=["linkedin.com"],
+                    auto_refresh=False,
+                )
 
                 # Check if clicking card revealed daily limit feedback
                 if await self._check_daily_limit_reached():
@@ -858,6 +837,16 @@ class LinkedInBrowserAgent:
 
         for step in range(1, 12):
             await asyncio.sleep(2.0)
+
+            # Rule 1: Clean any secondary about or popup tabs while keeping modal open
+            search_url = getattr(self, "_current_search_url", "https://www.linkedin.com/jobs/")
+            self._page, _ = await clean_and_recover_blank_tabs(
+                self._context,
+                self._page,
+                fallback_url=search_url,
+                allowed_domains=["linkedin.com"],
+                auto_refresh=False,
+            )
 
             # Check if modal is still open
             modal = await self._page.query_selector("div[data-test-modal], .jobs-easy-apply-modal, .artdeco-modal")
@@ -1207,15 +1196,21 @@ class LinkedInBrowserAgent:
             pass
 
     async def close(self):
-        """Safely disconnect or close browser resources."""
+        """Safely disconnect or close browser resources without terminating the single Chrome instance."""
         try:
-            if hasattr(self, "_is_cdp") and self._is_cdp:
-                if self._page and not self._page.is_closed():
-                    pass
-            elif self._context:
-                await self._context.close()
+            if self._context:
+                for p in list(self._context.pages):
+                    if p != self._page:
+                        try:
+                            await p.close()
+                        except Exception:
+                            pass
+            if hasattr(self, "_is_cdp") and not self._is_cdp:
+                if self._context:
+                    await self._context.close()
             if self._playwright:
                 await self._playwright.stop()
+            logger.info("🔌 Cleanly disconnected LinkedIn browser session (single Chrome preserved).")
         except Exception:
             pass
 
@@ -1282,6 +1277,7 @@ async def run_linkedin_auto_apply(
                     f"sortBy=DD&"
                     f"start={start_offset}"
                 )
+                agent._current_search_url = url
                 await agent._page.goto(url, wait_until="domcontentloaded", timeout=60000)
                 await asyncio.sleep(4)
                 await agent._check_and_wait_for_signin()

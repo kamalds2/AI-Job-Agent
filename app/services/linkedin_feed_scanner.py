@@ -17,6 +17,11 @@ from app.config.settings import (
     EMAIL_ADDRESS,
     REPORTS_DIR,
 )
+from app.services.browser_tab_guard import (
+    attach_context_blank_tab_monitor,
+    clean_and_recover_blank_tabs,
+    connect_or_launch_single_chrome,
+)
 from app.services.email_service import EmailService
 from app.services.report_service import ReportService
 from app.services.resume_service import ResumeService
@@ -85,47 +90,46 @@ class LinkedInFeedScanner:
         self._playwright = None
 
     async def _connect_browser(self):
-        import httpx
         from playwright.async_api import async_playwright
         self._playwright = await async_playwright().start()
-        try:
-            resp = httpx.get(f"{CHROME_CDP_URL}/json/version", timeout=2.0, verify=False)
-            if resp.status_code == 200:
-                logger.info("connected to active Chrome via CDP")
-                self._browser = await self._playwright.chromium.connect_over_cdp(
-                    CHROME_CDP_URL, timeout=10000)
-                contexts = self._browser.contexts
-                self._context = contexts[0] if contexts else await self._browser.new_context()
-                pages = self._context.pages
-                self._page = pages[0] if pages else await self._context.new_page()
-                return
-        except Exception:
-            pass
-        logger.info("launching persistent Chrome for LinkedIn feed scan")
-        try:
-            self._context = await self._playwright.chromium.launch_persistent_context(
-                user_data_dir=AGENT_PROFILE_DATA_DIR,
-                executable_path=CHROME_PATH,
-                headless=False,
-                args=["--start-maximized", "--disable-blink-features=AutomationControlled",
-                      "--no-first-run", "--no-default-browser-check", "--remote-debugging-port=9222"],
-                viewport=None)
-        except Exception as e:
-            logger.warning(f"primary Chrome launch failed ({e}), trying fallback profile")
-            self._context = await self._playwright.chromium.launch_persistent_context(
-                user_data_dir=os.path.expandvars(
-                    r"%LOCALAPPDATA%\Google\Chrome\User Data\AgentProfile2"),
-                executable_path=CHROME_PATH,
-                headless=False,
-                args=["--start-maximized", "--remote-debugging-port=9222"],
-                viewport=None)
-        pages = self._context.pages
-        self._page = pages[0] if pages else await self._context.new_page()
+
+        self._context, self._page, self._is_cdp = await connect_or_launch_single_chrome(
+            self._playwright,
+            cdp_port=9222,
+            user_data_dir=AGENT_PROFILE_DATA_DIR,
+            chrome_path=CHROME_PATH,
+        )
+
+        # Rule 1: Clean any stuck about:blank / about:* tabs and attach context monitor
+        self._page, _ = await clean_and_recover_blank_tabs(
+            self._context,
+            self._page,
+            fallback_url="https://www.linkedin.com/feed/",
+            allowed_domains=["linkedin.com"],
+            auto_refresh=False,
+        )
+        attach_context_blank_tab_monitor(
+            self._context,
+            lambda: self._page,
+            default_portal_url="https://www.linkedin.com/feed/",
+            allowed_domains=["linkedin.com"],
+        )
 
     async def _disconnect_browser(self):
         try:
+            if self._context:
+                for p in list(self._context.pages):
+                    if p != self._page:
+                        try:
+                            await p.close()
+                        except Exception:
+                            pass
+            if hasattr(self, "_is_cdp") and not self._is_cdp:
+                if self._context:
+                    await self._context.close()
             if self._playwright:
                 await self._playwright.stop()
+            logger.info("🔌 Cleanly disconnected LinkedIn feed scanner session (single Chrome preserved).")
         except Exception:
             pass
 

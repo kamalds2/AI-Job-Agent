@@ -31,6 +31,7 @@ from app.config.settings import JOB_BOARD_EMAIL, JOB_BOARD_PASSWORD
 from app.services.browser_tab_guard import (
     attach_context_blank_tab_monitor,
     clean_and_recover_blank_tabs,
+    connect_or_launch_single_chrome,
     is_blank_url,
 )
 from app.services.email_service import EmailService
@@ -239,56 +240,12 @@ class IndeedBrowserAgent:
 
         self._playwright = await async_playwright().start()
 
-        # Solution 1: Connect via CDP over Port 9222 for true native browser authenticity
-        connected_via_cdp = False
-        try:
-            if not self.is_cdp_port_open():
-                self._launch_native_chrome()
-                # Wait for Chrome to listen on port 9222
-                for _ in range(20):
-                    await asyncio.sleep(0.5)
-                    if self.is_cdp_port_open():
-                        break
-
-            if self.is_cdp_port_open():
-                logger.info(f"🔌 Connecting to native Google Chrome via CDP (http://127.0.0.1:{self.cdp_port})...")
-                self._browser = await self._playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{self.cdp_port}")
-                self._context = self._browser.contexts[0] if self._browser.contexts else await self._browser.new_context()
-                pages = self._context.pages
-                self._page = pages[0] if pages else await self._context.new_page()
-                self._is_cdp = True
-                connected_via_cdp = True
-                logger.info("✅ Connected to Real Google Chrome via CDP!")
-        except Exception as e:
-            logger.warning(f"CDP connection attempt note: {e}. Falling back to persistent launch...")
-
-        if not connected_via_cdp:
-            logger.info("🚀 Launching persistent Google Chrome for Indeed Agent...")
-            try:
-                self._context = await self._playwright.chromium.launch_persistent_context(
-                    user_data_dir=self.user_data_dir,
-                    executable_path=self.chrome_path,
-                    headless=False,
-                    args=[
-                        "--start-maximized",
-                        "--disable-blink-features=AutomationControlled",
-                        "--no-first-run",
-                        "--no-default-browser-check",
-                    ],
-                    viewport=None,
-                )
-            except Exception as e:
-                logger.error(f"Error launching persistent context: {e}")
-                self._context = await self._playwright.chromium.launch_persistent_context(
-                    user_data_dir=os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\User Data\AgentProfile2"),
-                    executable_path=self.chrome_path,
-                    headless=False,
-                    args=["--start-maximized"],
-                    viewport=None,
-                )
-
-            pages = self._context.pages
-            self._page = pages[0] if pages else await self._context.new_page()
+        self._context, self._page, self._is_cdp = await connect_or_launch_single_chrome(
+            self._playwright,
+            cdp_port=self.cdp_port,
+            user_data_dir=self.user_data_dir,
+            chrome_path=self.chrome_path,
+        )
 
         # Apply stealth overrides
         await self._page.add_init_script("""

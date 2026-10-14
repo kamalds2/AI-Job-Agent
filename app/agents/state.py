@@ -27,8 +27,12 @@ class AgentState(TypedDict):
     # ── Email drafting & sending ───────────────────────────────
     email_drafts: list[dict]     # [{job_id, to, subject, body}]
     emails_sent: int
+
     # ── Report ─────────────────────────────────────────────────
     report_path: Optional[str]
+
+    # ── Phase 3: Browser Auto-Apply stats ──────────────────────
+    browser_stats: Optional[dict]
 
     # ── Errors & logs ─────────────────────────────────────────
     errors: list[str]

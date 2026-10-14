@@ -23,23 +23,20 @@ _scheduler: BackgroundScheduler | None = None
 
 
 def _run_agent_job():
-    """APScheduler job function — runs the master multi-agent pipeline."""
-    import sys
-    import asyncio
-    if sys.platform == "win32":
-        try:
-            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        except Exception:
-            pass
-
-    from app.agents.orchestrator import run_full_multi_agent_pipeline_sync
-
-    logger.info("⏰ Scheduled multi-agent job run starting...")
+    """APScheduler job function — runs the complete 3-phase agent pipeline."""
+    from app.agents.orchestrator import run_agent_sync
+    logger.info("⏰ Scheduled agent run starting (Full 3-Phase Pipeline)...")
     try:
-        summary = run_full_multi_agent_pipeline_sync(dry_run=False)
-        logger.info("✅ Scheduled multi-agent pipeline completed successfully!")
+        result = run_agent_sync(include_browser_agents=True, target_per_portal=5)
+        b_stats = result.get("browser_stats") or {}
+        logger.info(
+            f"✅ Scheduled run complete — "
+            f"new: {result.get('new_jobs_count', 0)}, "
+            f"qualified: {len(result.get('qualified_job_ids', []))}, "
+            f"browser applied: {b_stats.get('total_applied', 0)}"
+        )
     except Exception as e:
-        logger.error(f"❌ Scheduled multi-agent run failed: {e}", exc_info=True)
+        logger.error(f"❌ Scheduled run failed: {e}")
 
 
 def start_scheduler():
@@ -63,13 +60,8 @@ def start_scheduler():
     )
 
     _scheduler.start()
-    next_run = None
-    for j in _scheduler.get_jobs():
-        if j.id == "job_agent_run":
-            next_run = j.next_run_time
-            break
     logger.info(
-        f"⏰ Scheduler active — 24/7 fixed runs scheduled at 06:00 AM, 12:00 PM, 06:00 PM, 12:00 AM IST (Next Run: {next_run})"
+        "⏰ Scheduler started — 24/7 fixed runs scheduled at 06:00 AM, 12:00 PM, 06:00 PM, 12:00 AM IST"
     )
 
 

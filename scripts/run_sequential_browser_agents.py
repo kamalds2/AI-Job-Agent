@@ -89,10 +89,19 @@ async def main():
         default=25,
         help="Maximum jobs to inspect per portal (default: 25)",
     )
+    parser.add_argument(
+        "--include-indeed",
+        action="store_true",
+        default=False,
+        help="Unpause and include Indeed browser agent",
+    )
     args = parser.parse_args()
 
     # Normalize portals list
     selected_portals = [p.lower().strip() for p in args.portals]
+    if "indeed" in selected_portals and not args.include_indeed:
+        logger.info("⏸️ [PAUSED]: Indeed is paused by user preference until further notice. Skipping Indeed.")
+        selected_portals = [p for p in selected_portals if p != "indeed"]
 
     logger.info("=" * 68)
     logger.info("  🚀 KKNN AUTONOMOUS MULTI-AGENT SEQUENTIAL RUNNER")
