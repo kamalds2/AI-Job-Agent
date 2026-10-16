@@ -16,6 +16,7 @@ from app.config.browser_settings import (
     LINKEDIN_SEARCH_KEYWORDS,
     MAX_APPLICATIONS_PER_BROWSER_RUN,
 )
+from app.config.settings import CANDIDATE_EMAIL, CANDIDATE_NAME
 from app.database.database import SessionLocal
 from app.models.application import Application
 from app.models.job import Job
@@ -163,8 +164,8 @@ class BrowserAgentOrchestrator:
                             # Record in DB
                             app_record = Application(
                                 job_id=db_job.id,
-                                candidate_name="Meesala Srinivas Rao",
-                                candidate_email="srinivasrao6162@gmail.com",
+                                candidate_name=CANDIDATE_NAME,
+                                candidate_email=CANDIDATE_EMAIL,
                                 status="APPLIED" if not self.dry_run else "DRY_RUN_REVIEW",
                                 resume_version=tailored_pdf,
                                 applied_at=datetime.utcnow(),

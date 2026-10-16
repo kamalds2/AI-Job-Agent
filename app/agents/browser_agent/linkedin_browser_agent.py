@@ -1,6 +1,6 @@
 """
-Portal 1: LinkedIn Autonomous Browser Auto-Apply Agent (Finance & Accounting Sector).
-Candidate: Meesala Srinivas Rao (MBA in Finance — Fresher / 0-1 Years Experience).
+Portal 1: LinkedIn Autonomous Browser Auto-Apply Agent (Software Engineering / Java & AI).
+Candidate: Doddi Kamal Kumar (Software Engineer / Java Backend & AI — 0-2 Years Experience).
 
 Features:
 - Connects via CDP (port 9222) to active browser session (Microsoft Edge).
@@ -11,7 +11,7 @@ Features:
     * Most Recent sort (sortBy=DD)
 - Robust DOM evaluate clicking (immune to detachment, scrolls list container into view).
 - Evaluates title & JD for finance roles without false-positive skips on reporting lines (e.g. 'reports to Senior Manager').
-- Dynamically generates ATS 1-page PDF resumes tailored for Meesala Srinivas Rao.
+- Dynamically generates ATS 1-page PDF resumes tailored for Doddi Kamal Kumar.
 - Automates the full Easy Apply modal:
     * Uploads tailored PDF resume
     * Automatically fills text, number, and tel inputs (phone, email, notice period, CTC, experience)
@@ -264,9 +264,9 @@ class LinkedInBrowserAgent:
 
         # Name
         if "first name" in q_lower:
-            return "Srinivas Rao"
+            return "Kamal Kumar"
         if "last name" in q_lower:
-            return "Meesala"
+            return "Doddi"
         if "full name" in q_lower or ("name" in q_lower and "company" not in q_lower):
             return CANDIDATE_NAME
 
@@ -359,7 +359,7 @@ class LinkedInBrowserAgent:
             try:
                 prompt = (
                     f"You are answering an employment questionnaire for a candidate.\n"
-                    f"Candidate: Meesala Srinivas Rao (MBA in Finance, 1 year experience, immediate joiner, Hyderabad India).\n"
+                    f"Candidate: Doddi Kamal Kumar (Software Engineer, Java & Spring Boot, AI, 2 years experience, immediate joiner, Hyderabad India).\n"
                     f"Job: {job_title} at {company}\n"
                     f"Question: {question_text}\n"
                     f"Field Type: {field_type}\n"

@@ -31,15 +31,15 @@ from app.utils.gemini_client import get_gemini_client
 
 logger = logging.getLogger(__name__)
 
-CUTSHORT_FINANCE_PITCH_PROMPT = """Act as an expert early-career Finance professional and career strategist.
+CUTSHORT_FINANCE_PITCH_PROMPT = """Act as an expert early-career Software & Backend engineer.
 Write a highly targeted, punchy, and confident application message to the recruiter on Cutshort.
 
 Candidate Profile:
-- Name: Meesala Srinivas Rao
-- Education: MBA (Finance) from CSI Institute of PG Studies (Expected 2026), B.Com from Osmania University (CGPA 7.5)
-- Core Competencies: Financial Analysis, Corporate Accounting, Investment Analysis, Ratio Analysis, Financial Modeling, DCF Valuation, Risk Assessment, MS Excel, MS Word
-- Academic Project: Investment Analysis and Portfolio Management at Infosys Limited
+- Name: Doddi Kamal Kumar
+- Education: B.Tech in CSE (2024, CGPA 8.0)
+- Core Competencies: Java, Spring Boot, Microservices, Python, FastAPI, AI Agents, AWS, Docker, REST APIs
 - Availability: Immediate joiner (0 days notice)
+- Location: Open to remote and relocation worldwide
 
 RULES FOR THE MESSAGE:
 1. Keep it short and punchy (under 110 words).
@@ -152,7 +152,7 @@ Generate the targeted application message for {clean_company} to {greeting_name}
             return False
 
         # Clean standard filename for Cutshort S3 signedUrl compatibility
-        clean_upload_path = os.path.join(os.path.dirname(abs_path), "Srinivas_Rao_Resume.pdf")
+        clean_upload_path = os.path.join(os.path.dirname(abs_path), "Kamal_Kumar_Resume.pdf")
         try:
             shutil.copy2(abs_path, clean_upload_path)
             target_path = clean_upload_path

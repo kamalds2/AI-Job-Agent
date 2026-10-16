@@ -30,20 +30,20 @@ from app.utils.gemini_client import get_gemini_client
 
 logger = logging.getLogger(__name__)
 
-YC_PITCH_PROMPT = """Act as an expert early-career finance professional applying to a Y Combinator startup.
+YC_PITCH_PROMPT = """Act as an expert early-career software and backend engineer applying to a Y Combinator startup.
 Write a punchy, high-impact first-person pitch (under 100 words) addressed to the founders.
 
 Candidate Profile:
-- Name: Meesala Srinivas Rao
-- Education: MBA (Finance) from CSI Institute of PG Studies (Expected 2026), B.Com from Osmania University (CGPA 7.5)
-- Core Competencies: Financial Analysis, Corporate Accounting, Investment Analysis, Ratio Analysis, Valuation, Financial Modeling, MS Excel
-- Academic Project: Investment Analysis and Portfolio Management at Infosys Limited
+- Name: Doddi Kamal Kumar
+- Education: B.Tech in CSE (2024, CGPA 8.0)
+- Core Competencies: Java, Spring Boot, Microservices, Python, FastAPI, AI Agents, AWS, Docker, REST APIs
 - Availability: Immediate joiner (0 days notice)
+- Location: Open to remote and relocation worldwide
 
 Rules:
 1. Under 100 words.
 2. Directly reference 2 specific requirements from the Job Description.
-3. Highlight quantitative rigor, attention to detail, and rapid execution.
+3. Highlight backend scale, AI automation, and rapid execution.
 4. Strictly first-person ("I", "my").
 5. Return ONLY the raw pitch text.
 """
@@ -90,7 +90,8 @@ class YCombinatorBrowserAgent:
             logged_in_selectors=[
                 "a:has-text('My profile')",
                 ":has-text('My profile')",
-                ":has-text('srinivas rao')",
+                ":has-text('kamal')",
+                ":has-text('doddi')",
                 "a[href*='/candidate/']",
                 "a[href*='/profile']",
                 "div.user-menu",
@@ -129,9 +130,9 @@ class YCombinatorBrowserAgent:
         return (
             f"Hi Team,\n\n"
             f"I am excited to apply for the {job_title} role at {company}. "
-            f"With a strong foundation in financial analysis, corporate accounting, ratio analysis, and financial modeling (MBA Finance 2026), "
-            f"I bring deep quantitative rigor and data-driven insights to support your financial planning and operations. "
-            f"As an immediate joiner (0 days notice), I would welcome the chance to contribute to {company}."
+            f"With strong experience in Java, Spring Boot microservices, Python, REST APIs, and building autonomous AI agent workflows (B.Tech CSE 2024), "
+            f"I bring solid engineering rigor, clean code, and production reliability to your engineering team. "
+            f"As an immediate joiner (0 days notice) who is open to relocating anywhere, I would love the chance to contribute to {company}."
         )
 
     async def run_auto_apply(

@@ -333,11 +333,11 @@ class FormSelfHealer:
                 logger.info("🧠 [Self-Healer] Invoking Gemini Vision Multimodal to analyze error screenshot...")
                 vision_prompt = (
                     f"Look at this screenshot of a job application form with validation errors for job '{job_title}' at '{company}'.\n"
-                    f"Candidate Profile: Meesala Srinivas Rao, MBA Finance (2026), B.Com (CGPA 7.5), Fresher / 0-1 years Finance/Accounting/Valuation/Excel experience, Current CTC: 1.8 LPA (180000 INR), Expected CTC: 4.5 LPA (450000 INR), Notice Period: 0 days (immediate joiner), India citizen, Open to relocation/hybrid/remote.\n"
+                    f"Candidate Profile: Doddi Kamal Kumar, Software Engineer / Java Backend & AI Developer, B.Tech CSE (2024, 8.0 CGPA), 1.5 - 2 years experience with Java, Spring Boot, Microservices, Python, AI Agents, AWS, Docker. Current CTC: 3.5 LPA (350000 INR), Expected CTC: 7.0 LPA (700000 INR), Notice Period: 0 days (immediate joiner), India citizen, Open to relocation/hybrid/remote.\n"
                     f"Rules:\n"
                     f"- If question asks Notice Period in days or requires whole number -> 0\n"
-                    f"- If question asks Current CTC in lakhs -> 1.8, in raw integer -> 180000\n"
-                    f"- If question asks Expected CTC in lakhs -> 4.5, in raw integer -> 450000\n"
+                    f"- If question asks Current CTC in lakhs -> 3.5, in raw integer -> 350000\n"
+                    f"- If question asks Expected CTC in lakhs -> 7.0, in raw integer -> 700000\n"
                     f"- If radio or dropdown is missing selection -> select 'Yes' or appropriate option.\n"
                     f"Identify what exact values should be entered in the failing/red input fields.\n"
                     f"Return ONLY a JSON list of fixes: [{{\"field_text\": \"...\", \"fix_value\": \"...\"}}]"

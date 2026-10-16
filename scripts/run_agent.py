@@ -52,9 +52,11 @@ async def main():
     parser.add_argument("--skip-recruiter", action="store_true", help="Skip Phase 2 LinkedIn recruiter feed outreach")
     args = parser.parse_args()
 
+    from app.config.settings import CANDIDATE_NAME, CANDIDATE_EXPERIENCE_YEARS
+
     print("\n" + "=" * 70)
     print("  🌐 [KKNN AUTONOMOUS JOB ASSISTANT — 3-PHASE PIPELINE]")
-    print("  🎯 [CANDIDATE: MEESALA SRINIVAS RAO — MBA FINANCE FRESHER (0-1 YRS)]")
+    print(f"  🎯 [CANDIDATE: {CANDIDATE_NAME.upper()} — SOFTWARE / JAVA & AI DEVELOPER ({CANDIDATE_EXPERIENCE_YEARS.upper()})]")
     print("=" * 70)
 
     if args.dry_run:
