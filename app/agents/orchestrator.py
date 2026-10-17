@@ -64,6 +64,10 @@ async def run_agent(
     target_per_portal: int = 5,
     portals: Optional[list] = None,
     include_indeed: bool = False,
+    include_career_sites: bool = False,
+    career_sites_excel: Optional[str] = None,
+    career_sites_target: int = 10,
+    career_sites_country: Optional[str] = None,
 ) -> AgentState:
     """
     Run the complete job agent pipeline.
@@ -74,6 +78,10 @@ async def run_agent(
         target_per_portal: Target applications per portal for browser agents.
         portals: Specific portals to run in browser agent phase.
         include_indeed: Whether to unpause Indeed browser agent.
+        include_career_sites: Whether to run Phase 4 Global Career Sites agent.
+        career_sites_excel: Path to Excel spreadsheet for Phase 4.
+        career_sites_target: Application target for Phase 4.
+        career_sites_country: Country filter for Phase 4.
 
     Returns:
         Final AgentState with all results.
@@ -99,6 +107,7 @@ async def run_agent(
         "emails_sent": 0,
         "report_path": None,
         "browser_stats": None,
+        "career_sites_stats": None,
         "errors": [],
         "logs": [],
     }
@@ -127,6 +136,22 @@ async def run_agent(
                 logger.error(f"❌ Browser agent execution error: {b_err}")
                 final_state["errors"].append(f"Browser auto-apply error: {b_err}")
 
+        # Phase 4: Global Career Sites Autonomous Agent (if enabled)
+        if include_career_sites:
+            logger.info("🌐 [Orchestrator] Starting Phase 4: Global Career Sites Autonomous Agent...")
+            try:
+                from app.services.global_career_sites_agent import run_global_career_sites_apply
+                c_stats = await run_global_career_sites_apply(
+                    excel_path=career_sites_excel,
+                    target_applied=career_sites_target,
+                    country=career_sites_country,
+                    dry_run=is_dry_run,
+                )
+                final_state["career_sites_stats"] = c_stats
+            except Exception as c_err:
+                logger.error(f"❌ Global Career Sites agent execution error: {c_err}")
+                final_state["errors"].append(f"Global career sites error: {c_err}")
+
         # Summary logging
         logger.info("=" * 60)
         logger.info(f"✅ Agent Run Complete — ID: {run_id}")
@@ -139,6 +164,8 @@ async def run_agent(
         logger.info(f"   Report:          {final_state.get('report_path', 'N/A')}")
         if final_state.get("browser_stats"):
             logger.info(f"   Browser Apps:    {final_state['browser_stats'].get('total_applied', 0)}")
+        if final_state.get("career_sites_stats"):
+            logger.info(f"   Career Site Apps:{final_state['career_sites_stats'].get('total_applied', 0)}")
         if final_state.get("errors"):
             logger.warning(f"   Errors:          {final_state['errors']}")
         logger.info("=" * 60)

@@ -34,6 +34,9 @@ class AgentState(TypedDict):
     # ── Phase 3: Browser Auto-Apply stats ──────────────────────
     browser_stats: Optional[dict]
 
+    # ── Phase 4: Global Career Sites stats ─────────────────────
+    career_sites_stats: Optional[dict]
+
     # ── Errors & logs ─────────────────────────────────────────
     errors: list[str]
     logs: list[str]
