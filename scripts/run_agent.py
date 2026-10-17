@@ -44,25 +44,21 @@ async def main():
     parser = argparse.ArgumentParser(description="KKNN Autonomous AI Job Agent CLI — 4-Phase Pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Run without sending emails / dry-run on browser forms")
     parser.add_argument("--search-only", action="store_true", help="Only run job search, skip AI scoring and browser apply")
-    parser.add_argument("--target", type=int, default=5, help="Target applications per portal for Phase 3 browser agents (Default: 5)")
-    parser.add_argument("--portals", nargs="+", default=None, help="Specific portals for browser agent: linkedin ycombinator hirist cutshort indeed")
+    parser.add_argument("--target", type=int, default=5, help="Target applications per portal / career sites (Default: 5)")
+    parser.add_argument("--portals", nargs="+", default=None, help="Specific portals for browser agent: linkedin ycombinator hirist cutshort career_sites indeed")
     parser.add_argument("--include-indeed", action="store_true", help="Unpause and include Indeed browser agent")
-    parser.add_argument("--skip-browser", action="store_true", help="Skip Phase 3 browser auto-apply agents")
-    parser.add_argument("--browser-only", action="store_true", help="Only run Phase 3 browser auto-apply agents")
+    parser.add_argument("--skip-browser", action="store_true", help="Skip browser auto-apply agents")
+    parser.add_argument("--browser-only", action="store_true", help="Only run browser auto-apply agents (Phase 3 & 4)")
     parser.add_argument("--skip-recruiter", action="store_true", help="Skip Phase 2 LinkedIn recruiter feed outreach")
-    # Phase 4 Options
-    parser.add_argument("--include-careers", action="store_true", help="Run Phase 4 Global Career Sites Auto-Apply Agent")
+    parser.add_argument("--include-careers", action="store_true", help="Include Phase 4 Global Career Sites Auto-Apply Agent")
     parser.add_argument("--careers-only", action="store_true", help="Only run Phase 4 Global Career Sites Auto-Apply Agent")
-    parser.add_argument("--careers-excel", type=str, default=None, help="Path to company career sites spreadsheet for Phase 4")
-    parser.add_argument("--careers-target", type=int, default=10, help="Target applications for Phase 4 (Default: 10)")
-    parser.add_argument("--country", type=str, default=None, help="Filter companies by country/region for Phase 4 (e.g. 'germany', 'uae', 'australia')")
+    parser.add_argument("--careers-excel", type=str, default=None, help="Path to company career sites Excel/CSV spreadsheet")
+    parser.add_argument("--country", type=str, default=None, help="Filter career sites by country/region (e.g. 'germany', 'uae', 'europe', 'australia')")
     args = parser.parse_args()
 
-    from app.config.settings import CANDIDATE_EXPERIENCE_YEARS, CANDIDATE_NAME
-
     print("\n" + "=" * 70)
-    print("  🌐 [KKNN AUTONOMOUS JOB ASSISTANT — 4-PHASE GLOBAL PIPELINE]")
-    print(f"  🎯 [CANDIDATE: {CANDIDATE_NAME.upper()} — SOFTWARE / JAVA & AI DEVELOPER ({CANDIDATE_EXPERIENCE_YEARS.upper()})]")
+    print("  🌐 [KKNN AUTONOMOUS JOB ASSISTANT — 4-PHASE PIPELINE]")
+    print("  🎯 [CANDIDATE: MEESALA SRINIVAS RAO — MBA FINANCE FRESHER (0-1 YRS)]")
     print("=" * 70)
 
     if args.dry_run:
@@ -70,36 +66,40 @@ async def main():
     if args.search_only:
         print("  🔍  [SEARCH ONLY]: No AI scoring or auto-apply")
     if args.careers_only:
-        print("  🌍  [PHASE 4 ONLY]: Running Global Career Sites Auto-Apply exclusively")
+        print("  🌐  [CAREERS ONLY]: Only executing Phase 4 Global Career Sites Auto-Apply")
     elif args.browser_only:
         print("  🖥️  [BROWSER AGENTS ONLY]: Skipping API & Recruiter feed pipelines")
     elif not args.skip_browser:
-        print(f"  📊  Target Browser Applications per Portal: {args.target}")
-    if args.include_careers or args.careers_only:
-        print(f"  🏢  Phase 4 Target Career Sites Applications: {args.careers_target}")
+        print(f"  📊  Target Applications per Portal / Career Sites: {args.target}")
+    if args.country:
+        print(f"  🌍  Target Country/Region: {args.country.upper()}")
     print("=" * 70 + "\n")
 
-    # ── Phase 4 Only Mode ─────────────────────────────────────────
+    # ── Careers Only Mode ─────────────────────────────────────────
     if args.careers_only:
         from app.services.global_career_sites_agent import run_global_career_sites_apply
-        c_stats = await run_global_career_sites_apply(
+
+        print("━" * 70)
+        print("🌐 [PHASE 4] EXECUTING GLOBAL CAREER SITES AUTO-APPLY AGENT...")
+        print("━" * 70)
+        cs_stats = await run_global_career_sites_apply(
             excel_path=args.careers_excel,
-            target_applied=args.careers_target,
+            target_applied=args.target,
             country=args.country,
             dry_run=args.dry_run,
         )
         print("\n" + "=" * 70)
         print("  🎉 [PHASE 4 GLOBAL CAREER SITES RUN FINISHED]")
         print("=" * 70)
-        print(f"  • Companies Evaluated:   {c_stats.get('processed_companies', 0)}")
-        print(f"  • Applications Submitted: {c_stats.get('total_applied', 0)}")
+        print(f"  • Companies Evaluated:   {cs_stats.get('processed_companies', 0)}")
+        print(f"  • Applications Submitted: {cs_stats.get('total_applied', 0)}")
         print("=" * 70 + "\n")
         return
 
     # ── Search Only Mode ──────────────────────────────────────────
     if args.search_only:
-        from app.connectors.manager import SearchManager
         from app.database.database import SessionLocal
+        from app.connectors.manager import SearchManager
 
         db = SessionLocal()
         try:
@@ -119,7 +119,7 @@ async def main():
     phase1_result = {}
     phase2_result = {}
     browser_stats = {"total_applied": 0, "portals": {}}
-    career_stats = {"total_applied": 0, "processed_companies": 0}
+    career_sites_stats = {}
 
     # ── Phase 1: Job Boards & ATS Aggregator Pipeline ─────────────
     if not args.browser_only:
@@ -164,14 +164,14 @@ async def main():
             else:
                 selected_portals = ["linkedin", "ycombinator", "hirist", "cutshort"]
         else:
-            selected_portals = [p.lower().strip() for p in selected_portals]
+            selected_portals = [p.lower().strip() for p in selected_portals if p.lower().strip() != "career_sites"]
             if "indeed" in selected_portals and not args.include_indeed:
                 print("  ⏸️  [PAUSED]: Indeed is paused by user preference until further notice.")
                 print("      (Pass --include-indeed to explicitly unpause Indeed)")
                 selected_portals = [p for p in selected_portals if p != "indeed"]
 
         print("\n" + "━" * 70)
-        print("🌐 [PHASE 3/4] EXECUTING SEQUENTIAL MULTI-BOARD BROWSER AUTO-APPLY AGENTS...")
+        print("🌐 [PHASE 3/4] EXECUTING MULTI-BOARD BROWSER AUTO-APPLY AGENTS...")
         print(f"👉 Target per portal: {args.target} | Portals: {', '.join(p.upper() for p in selected_portals)}")
         print("━" * 70)
 
@@ -184,18 +184,17 @@ async def main():
             portals_to_run=selected_portals,
         )
 
-    # ── Phase 4: Global Career Sites Autonomous Agent ─────────────
-    if args.include_careers:
+    # ── Phase 4: Global Career Sites Browser Auto-Apply ───────────
+    if args.include_careers or (args.portals and "career_sites" in [p.lower() for p in args.portals]):
         from app.services.global_career_sites_agent import run_global_career_sites_apply
 
         print("\n" + "━" * 70)
-        print("🌍 [PHASE 4/4] EXECUTING GLOBAL CAREER SITES AUTONOMOUS AGENT...")
-        print(f"👉 Target: {args.careers_target} applications | Spreadsheet: {args.careers_excel or 'Careers Excel/'}")
+        print("🌐 [PHASE 4/4] EXECUTING GLOBAL CAREER SITES AUTO-APPLY AGENT...")
+        print(f"👉 Target applications: {args.target} | Excel: {args.careers_excel or 'Careers Excel/'}")
         print("━" * 70)
-
-        career_stats = await run_global_career_sites_apply(
+        career_sites_stats = await run_global_career_sites_apply(
             excel_path=args.careers_excel,
-            target_applied=args.careers_target,
+            target_applied=args.target,
             country=args.country,
             dry_run=args.dry_run,
         )
@@ -212,8 +211,8 @@ async def main():
         print(f"  • Phase 3 (Browser Auto-Apply): {browser_stats.get('total_applied', 0)} applications submitted")
         for portal_name, count in browser_stats.get("portals", {}).items():
             print(f"     ✅ {portal_name.upper():14}: {count} applied")
-    if args.include_careers:
-        print(f"  • Phase 4 (Career Sites Apply): {career_stats.get('total_applied', 0)} applications submitted ({career_stats.get('processed_companies', 0)} companies evaluated)")
+    if career_sites_stats:
+        print(f"  • Phase 4 (Global Career Sites): {career_sites_stats.get('total_applied', 0)} applied ({career_sites_stats.get('processed_companies', 0)} evaluated)")
     print("=" * 70 + "\n")
 
 
